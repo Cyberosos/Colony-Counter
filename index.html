@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Colony Counter</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2F6F62">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Colonies">
+
+<style>
+:root{
+  --ink:#1B1D1E; --paper:#FAF9F6; --panel:#F0EEE8; --line:#D8D4CA;
+  --teal:#2F6F62; --amber:#C0863C;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --ink:#EDEAE2; --paper:#17181A; --panel:#1F2123; --line:#34363A; }
+}
+:root[data-theme="dark"]{ --ink:#EDEAE2; --paper:#17181A; --panel:#1F2123; --line:#34363A; }
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); min-height:100%; padding: 28px 20px 60px; }
+.wrap{max-width:1040px; margin:0 auto;}
+header{margin-bottom:22px;}
+h1{font-size:26px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em;}
+.sub{opacity:0.62; font-size:14.5px; max-width:64ch; line-height:1.5;}
+.layout{display:grid; grid-template-columns: 300px 1fr; gap:20px;}
+@media (max-width: 760px){ .layout{grid-template-columns:1fr;} }
+.panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; }
+.panel h2{font-size:12.5px; text-transform:uppercase; letter-spacing:0.06em; opacity:0.55; margin:0 0 14px; font-weight:600;}
+.drop{ display:block; border:1.5px dashed var(--line); border-radius:8px; padding:22px 14px; text-align:center; cursor:pointer; font-size:13.5px; opacity:0.75; transition: border-color .15s, background .15s; -webkit-tap-highlight-color:transparent; }
+.drop:hover, .drop.drag{ border-color:var(--teal); background:rgba(47,111,98,0.06); }
+.drop input{display:none;}
+.ctrl{margin-top:16px;}
+.ctrl label{display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px;}
+.ctrl label span.val{font-family:var(--mono); font-size:12px; opacity:0.65;}
+.ctrl input[type=range]{width:100%; accent-color:var(--teal);}
+.hint{font-size:11.5px; opacity:0.5; margin-top:3px; line-height:1.4;}
+.toggle-row{display:flex; gap:8px; margin-top:6px;}
+.toggle-row button{ flex:1; padding:8px 6px; font-size:12.5px; border-radius:6px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+.toggle-row button.active{ background:var(--teal); border-color:var(--teal); color:#fff; }
+.stagebox{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; min-height:340px; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:auto; }
+.stagebox canvas{max-width:100%; height:auto; border-radius:4px; display:block;}
+.placeholder{opacity:0.4; font-size:13.5px; text-align:center;}
+.dishmsg{ font-size:12px; background:rgba(192,134,60,0.15); border:1px solid var(--amber); color:var(--amber); padding:8px 12px; border-radius:6px; margin-bottom:12px; display:none; }
+.results{ display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-top:16px; }
+.stat{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 14px 12px; }
+.stat .big{font-family:var(--mono); font-size:28px; font-weight:600; line-height:1;}
+.stat .lbl{font-size:11.5px; opacity:0.55; margin-top:6px;}
+.actions{display:flex; gap:10px; margin-top:16px;}
+.actions button{ padding:10px 16px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--ink); font-size:13.5px; cursor:pointer; }
+.actions button.primary{ background:var(--teal); border-color:var(--teal); color:#fff; }
+.actions button:disabled{opacity:0.4; cursor:not-allowed;}
+footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-width:70ch;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Colony Counter</h1>
+  <div class="sub">Upload a petri dish photo. The dish itself is detected automatically by colour, so notebook paper, handwriting, and anything outside the plate is excluded before counting even starts.</div>
+</header>
+<div class="layout">
+  <div class="panel">
+    <h2>Image</h2>
+    <label class="drop" id="drop" for="file">Click or drop a photo here<input type="file" id="file" accept="image/*"></label>
+
+    <h2 style="margin-top:20px;">Dish detection <span id="dishMode" style="font-family:var(--mono);opacity:.7;text-transform:none;letter-spacing:0;"></span></h2>
+    <div class="hint" style="margin:-4px 0 8px;">Drag the circle on the photo to move it. Drag its edge (or scroll) to resize.</div>
+    <div class="toggle-row"><button id="autoDishBtn">Auto-detect dish</button></div>
+    <div class="ctrl">
+      <label>Sensitivity <span class="val" id="dishSenseVal">0</span></label>
+      <input type="range" id="dishSense" min="-60" max="60" value="0">
+      <div class="hint">Adjust if the detected circle misses the plate or bleeds into the background.</div>
+    </div>
+    <div class="ctrl">
+      <label>Shrink dish edge <span class="val" id="edgeVal">5%</span></label>
+      <input type="range" id="edgeCrop" min="0" max="25" value="5">
+      <div class="hint">Trims dish rim / glare just inside the detected boundary.</div>
+    </div>
+    <div class="ctrl">
+      <label>Ignore top of dish (label) <span class="val" id="topVal">15%</span></label>
+      <input type="range" id="topCrop" min="0" max="45" value="15">
+      <div class="hint">Caps off handwriting or text written on the media itself, near the top.</div>
+    </div>
+
+    <h2 style="margin-top:20px;">Colony detection</h2>
+    <div class="ctrl">
+      <label>Colony size</label>
+      <div class="toggle-row">
+        <button data-size="small" class="active">Small / scattered</button>
+        <button data-size="large">Large / touching</button>
+      </div>
+      <div class="hint">Pick <b>Large</b> for big colonies that touch or overlap: it fills hollow centres and splits touching colonies. (Max size, ring and colour-saturation filters don't apply in Large mode.)</div>
+    </div>
+    <div class="ctrl">
+      <label>Detect colonies by <span class="val" id="autoNote"></span></label>
+      <div class="toggle-row" style="flex-wrap:wrap;">
+        <button data-mode="auto" class="active">Auto</button>
+        <button data-mode="colour">Colour</button>
+        <button data-mode="dark">Darker</button>
+        <button data-mode="light">Lighter</button>
+      </div>
+      <div class="hint">Auto compares each spot with its local surroundings and picks whichever cue (colour or darkness) stands out most. Override if it guesses wrong.</div>
+    </div>
+    <div class="ctrl">
+      <label>Analysis detail</label>
+      <div class="toggle-row">
+        <button data-detail="700">Standard</button>
+        <button data-detail="1100" class="active">High</button>
+        <button data-detail="1600">Max</button>
+      </div>
+      <div class="hint">Sized to the dish itself, not the whole photo — a close-up and a far-away shot of the same plate now get the same detail. Raise this to catch tiny colonies (slower to compute).</div>
+      <div class="hint" id="detailInfo" style="font-family:var(--mono);"></div>
+    </div>
+    <div class="ctrl">
+      <label>Sensitivity <span class="val" id="threshVal">0</span></label>
+      <input type="range" id="threshOffset" min="-60" max="60" value="0">
+      <div class="hint">Left = fewer, more confident colonies. Right = catches faint ones too.</div>
+    </div>
+    <div class="ctrl">
+      <label>Min colony size <span class="val" id="minVal">8 px</span></label>
+      <input type="range" id="minArea" min="1" max="60" value="8">
+      <div class="hint">Lower it to catch tiny colonies. On scratched plates too low a value picks up fringe along the scratches.</div>
+    </div>
+    <div class="ctrl">
+      <label>Max colony size <span class="val" id="maxVal">0.5%</span></label>
+      <input type="range" id="maxArea" min="1" max="30" value="5">
+      <div class="hint">Filters out merged colony clusters, as % of countable dish area.</div>
+    </div>
+    <div class="ctrl">
+      <label>Reject rings / reflections <span class="val" id="fillVal">25%</span></label>
+      <input type="range" id="fillMin" min="0" max="90" value="25">
+      <div class="hint">A real colony is a filled dot. Glare on the media often shows up as a hollow bright ring — raise this to drop shapes that aren't solid.</div>
+    </div>
+    <div class="ctrl">
+      <label>Require colour saturation <span class="val" id="chromaVal">off</span></label>
+      <input type="range" id="chromaMin" min="0" max="120" value="0">
+      <div class="hint">Reflections are usually near-white/grey. Raise this on colour plates (e.g. blue/teal on TBX) to require actual colour, not just brightness.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="dishmsg" id="dishMsg">Couldn't find the dish automatically. Drag the circle onto the plate and drag its edge to resize it, or try the dish sensitivity slider.</div>
+    <div class="stagebox" id="stage">
+      <div class="placeholder" id="placeholder">No image loaded yet</div>
+      <canvas id="canvas" style="display:none;touch-action:none;"></canvas>
+    </div>
+    <div class="results" id="results" style="display:none;">
+      <div class="stat"><div class="big" id="countStat">0</div><div class="lbl">Colonies counted</div></div>
+      <div class="stat"><div class="big" id="avgStat">0</div><div class="lbl">Avg. size (px²)</div></div>
+      <div class="stat"><div class="big" id="rangeStat">–</div><div class="lbl">Size range (px²)</div></div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="downloadBtn" disabled>Download annotated image</button>
+      <button id="resetBtn" disabled>Reset</button>
+    </div>
+  </div>
+</div>
+<footer class="note">Runs entirely in your browser — nothing is uploaded anywhere. The dish is found by looking for the largest patch of saturated colour (media) against the paler background; very pale/clear media or a very colourful background surface can throw this off, in which case nudge the sensitivity slider. Overlapping colonies that visually merge into one blob are counted as one. Glare on the media is filtered by shape (a real colony is a filled dot, not a hollow ring) and, optionally, by requiring actual colour rather than near-white brightness.</footer>
+</div>
+<script>
+(function(){
+  const fileInput = document.getElementById('file');
+  const drop = document.getElementById('drop');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const placeholder = document.getElementById('placeholder');
+  const results = document.getElementById('results');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const dishMsg = document.getElementById('dishMsg');
+
+  let srcImg=null, baseW=0, baseH=0, grayCache=null, chromaCache=null, currentDish=null, manualDish=null, detailDim=1100, dishFracR=null, recTimer=null, drag=null;
+
+  const dishSense=document.getElementById('dishSense'), edgeCrop=document.getElementById('edgeCrop'),
+        topCrop=document.getElementById('topCrop'), threshOffset=document.getElementById('threshOffset'),
+        minArea=document.getElementById('minArea'), maxArea=document.getElementById('maxArea'),
+        fillMin=document.getElementById('fillMin'), chromaMin=document.getElementById('chromaMin'),
+        modeBtns=document.querySelectorAll('[data-mode]'), detailBtns=document.querySelectorAll('[data-detail]'), dishModeEl=document.getElementById('dishMode'), autoDishBtn=document.getElementById('autoDishBtn'), autoNote=document.getElementById('autoNote'), detailInfo=document.getElementById('detailInfo');
+  let sizeMode='small', mode='auto', rgbaCache=null, LSm=null, NR=null, NG=null, NB=null;
+
+  const dishSenseVal=document.getElementById('dishSenseVal'), edgeVal=document.getElementById('edgeVal'),
+        topVal=document.getElementById('topVal'), threshVal=document.getElementById('threshVal'),
+        minVal=document.getElementById('minVal'), maxVal=document.getElementById('maxVal'),
+        fillVal=document.getElementById('fillVal'), chromaVal=document.getElementById('chromaVal');
+
+  function syncLabels(){
+    dishSenseVal.textContent = dishSense.value;
+    edgeVal.textContent = edgeCrop.value+'%';
+    topVal.textContent = topCrop.value+'%';
+    threshVal.textContent = threshOffset.value;
+    minVal.textContent = minArea.value+' px';
+    maxVal.textContent = (maxArea.value/10).toFixed(1)+'%';
+    fillVal.textContent = fillMin.value+'%';
+    chromaVal.textContent = (+chromaMin.value===0) ? 'off' : chromaMin.value;
+  }
+  syncLabels();
+
+  const sizeBtns=document.querySelectorAll('[data-size]');
+  sizeBtns.forEach(b=>b.addEventListener('click', ()=>{
+    sizeMode=b.dataset.size; sizeBtns.forEach(x=>x.classList.toggle('active', x===b));
+    [maxArea,fillMin,chromaMin].forEach(el=>{ const c=el.closest('.ctrl'); c.style.opacity=sizeMode==='large'?'0.35':''; el.disabled=sizeMode==='large'; });
+    scheduleRecompute(0);
+  }));
+  modeBtns.forEach(b=>b.addEventListener('click', ()=>{
+    mode=b.dataset.mode; modeBtns.forEach(x=>x.classList.toggle('active', x===b)); recomputeColonies();
+  }));
+
+  function scheduleRecompute(ms){ clearTimeout(recTimer); recTimer=setTimeout(recomputeColonies, ms===undefined?150:ms); }
+  function setDishMode(){ dishModeEl.textContent = srcImg ? (manualDish?'· manual':'· auto') : ''; if(manualDish) dishMsg.style.display='none'; }
+  dishSense.addEventListener('input', ()=>{ syncLabels(); manualDish=null; setDishMode(); clearTimeout(recTimer); recTimer=setTimeout(redetectDish,150); });
+  [edgeCrop, topCrop, threshOffset, minArea, maxArea, fillMin, chromaMin].forEach(el=>{
+    el.addEventListener('input', ()=>{ syncLabels(); if(el===edgeCrop||el===topCrop) drawBaseNow(); scheduleRecompute(); });
+  });
+  autoDishBtn.addEventListener('click', ()=>{ manualDish=null; setDishMode(); redetectDish(); });
+  detailBtns.forEach(b=>b.addEventListener('click', ()=>{
+    detailBtns.forEach(x=>x.classList.toggle('active', x===b));
+    const oldW=baseW; detailDim=+b.dataset.detail;
+    if(srcImg) prepare(oldW);
+  }));
+
+  drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', ()=> drop.classList.remove('drag'));
+  drop.addEventListener('drop', e=>{ e.preventDefault(); drop.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); });
+
+  function loadFile(f){
+    if(!f.type.startsWith('image/')) return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        srcImg=img; manualDish=null;
+        placeholder.style.display='none'; canvas.style.display='block';
+        downloadBtn.disabled=false; resetBtn.disabled=false;
+        dishFracR=quickDetectDishFrac();
+        prepare(0);
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(f);
+  }
+
+  // Cheap pass on a small (≤480px) copy of the full-resolution source, just to learn how
+  // large the dish is relative to the photo, before committing to a working resolution.
+  // Returns the dish radius as a fraction of the source's longer side, or null if not found.
+  function quickDetectDishFrac(){
+    const qd=480, scale=Math.min(1, qd/Math.max(srcImg.width,srcImg.height));
+    const qw=Math.max(1,Math.round(srcImg.width*scale)), qh=Math.max(1,Math.round(srcImg.height*scale));
+    const off=document.createElement('canvas'); off.width=qw; off.height=qh;
+    const octx=off.getContext('2d'); octx.drawImage(srcImg,0,0,qw,qh);
+    const data=octx.getImageData(0,0,qw,qh).data;
+    const N=qw*qh, ch=new Uint8Array(N), lum=new Uint8Array(N);
+    const hc=new Array(256).fill(0), hl=new Array(256).fill(0);
+    for(let i=0,p=0;i<data.length;i+=4,p++){
+      const r=data[i],g=data[i+1],b=data[i+2];
+      ch[p]=Math.max(r,g,b)-Math.min(r,g,b); lum[p]=(0.299*r+0.587*g+0.114*b)|0;
+      hc[ch[p]]++; hl[lum[p]]++;
+    }
+    const tc=Math.max(1,Math.min(254,otsu(hc,N))), tl=otsu(hl,N);
+    const mk=(arr,fn)=>{ const m=new Uint8Array(N); for(let i=0;i<N;i++) if(fn(arr[i])) m[i]=1; return m; };
+    let best=circleCandidate(mk(ch,v=>v>tc),qw,qh,N);
+    for(const c of [circleCandidate(mk(lum,v=>v>tl),qw,qh,N), circleCandidate(mk(lum,v=>v<tl),qw,qh,N)])
+      if(c && (!best || c.score>best.score+0.08)) best=c;
+    return (best && best.score>=0.55) ? best.radius/Math.max(qw,qh) : null;
+  }
+
+  // The working resolution is chosen so the DISH lands at the target detail's pixel
+  // diameter — not the whole photo. A tight close-up and a far-away shot of the same
+  // plate then get analysed at the same effective detail, and we never spend megapixels
+  // on background outside the dish just because the photo itself is huge.
+  function prepare(oldW){
+    const srcLong=Math.max(srcImg.width,srcImg.height);
+    let longSide;
+    if(dishFracR){
+      longSide = detailDim/(2*dishFracR);          // dish diameter (px) == detailDim at this working size
+    } else {
+      longSide = detailDim*1.4;                     // dish not found yet — fall back to a flat photo-sized cap
+    }
+    longSide = Math.max(500, Math.min(longSide, 3200, srcLong));   // never upscale past the source photo
+    const scale = longSide/srcLong;
+    baseW=Math.round(srcImg.width*scale); baseH=Math.round(srcImg.height*scale);
+    if(manualDish && oldW){ const k=baseW/oldW; manualDish={cx:manualDish.cx*k, cy:manualDish.cy*k, radius:manualDish.radius*k}; }
+    canvas.width=baseW; canvas.height=baseH;
+    buildCaches(); setDishMode(); redetectDish();
+    const dpx = dishFracR ? Math.round(2*dishFracR*Math.max(baseW,baseH)) : Math.round(2*(currentDish?currentDish.radius:Math.min(baseW,baseH)*0.45));
+    detailInfo.textContent = `working at ${baseW}×${baseH}px · dish ≈ ${dpx}px across`;
+  }
+
+  function buildCaches(){
+    const off=document.createElement('canvas'); off.width=baseW; off.height=baseH;
+    const octx=off.getContext('2d'); octx.drawImage(srcImg,0,0,baseW,baseH);
+    const data=octx.getImageData(0,0,baseW,baseH).data;
+    const w=baseW,h=baseH,N=w*h;
+    grayCache=new Uint8ClampedArray(N);
+    chromaCache=new Uint8ClampedArray(N);
+    const ch=[new Float32Array(N),new Float32Array(N),new Float32Array(N)];
+    for(let i=0,p=0;i<data.length;i+=4,p++){
+      const r=data[i],g=data[i+1],b=data[i+2];
+      grayCache[p]=(0.299*r+0.587*g+0.114*b)|0;
+      chromaCache[p]=Math.max(r,g,b)-Math.min(r,g,b);
+      ch[0][p]=r; ch[1][p]=g; ch[2][p]=b;
+    }
+    // 3x3 box smoothing to tame sensor noise, then luminance + brightness-normalised colour
+    // Luminance keeps fine detail (tiny colonies); colour is smoothed more at higher
+    // resolution, because JPEG colour fringing along scratches/edges is 1-2px wide.
+    const scale=Math.max(w,h)/900, rc=Math.max(1,Math.round(scale)), rl=scale<1.25?1:0;
+    const smoothBy=(c,r)=> r===0 ? c : boxSum(boxSum(c,w,h,r,false),w,h,r,true);
+    const dc=(2*rc+1)*(2*rc+1), dl=(2*rl+1)*(2*rl+1);
+    const sc=ch.map(c=>smoothBy(c,rc)), sl=ch.map(c=>smoothBy(c,rl));
+    LSm=new Float32Array(N); NR=new Float32Array(N); NG=new Float32Array(N); NB=new Float32Array(N);
+    for(let p=0;p<N;p++){
+      LSm[p]=(sl[0][p]+sl[1][p]+sl[2][p])/(3*dl)+1e-3;
+      const r=sc[0][p]/dc, g=sc[1][p]/dc, b=sc[2][p]/dc, L=(r+g+b)/3+1e-3;
+      NR[p]=r/L; NG[p]=g/L; NB[p]=b/L;
+    }
+  }
+
+  // Box sum along x (r = radius). If transposeOnly is true, does the same along y.
+  function boxSum(src,w,h,r,alongY){
+    const out=new Float32Array(w*h);
+    if(!alongY){
+      const P=new Float32Array(w+1);
+      for(let y=0;y<h;y++){
+        const o=y*w; P[0]=0;
+        for(let x=0;x<w;x++) P[x+1]=P[x]+src[o+x];
+        for(let x=0;x<w;x++) out[o+x]=P[Math.min(x+r,w-1)+1]-P[Math.max(x-r,0)];
+      }
+    } else {
+      const P=new Float32Array(h+1);
+      for(let x=0;x<w;x++){
+        P[0]=0;
+        for(let y=0;y<h;y++) P[y+1]=P[y]+src[y*w+x];
+        for(let y=0;y<h;y++) out[y*w+x]=P[Math.min(y+r,h-1)+1]-P[Math.max(y-r,0)];
+      }
+    }
+    return out;
+  }
+  function boxBlurSum(src,w,h,r){ // separable 2D box sum, applied twice ≈ gaussian
+    let a=boxSum(src,w,h,r,false); a=boxSum(a,w,h,r,true);
+    a=boxSum(a,w,h,r,false); return boxSum(a,w,h,r,true);
+  }
+
+  function otsu(hist,total){
+    let sum=0; for(let t=0;t<256;t++) sum+=t*hist[t];
+    let sumB=0,wB=0,wF=0,varMax=-1,threshold=128;
+    for(let t=0;t<256;t++){
+      wB+=hist[t]; if(wB===0) continue;
+      wF=total-wB; if(wF===0) break;
+      sumB+=t*hist[t];
+      const mB=sumB/wB, mF=(sum-sumB)/wF;
+      const between=wB*wF*(mB-mF)*(mB-mF);
+      if(between>varMax){ varMax=between; threshold=t; }
+    }
+    return threshold;
+  }
+
+  function connectedComponents(mask,w,h){
+    const labels=new Int32Array(w*h).fill(-1);
+    const comps=[]; const stack=new Int32Array(w*h);
+    for(let idx=0;idx<w*h;idx++){
+      if(mask[idx]!==1||labels[idx]!==-1) continue;
+      let sp=0; stack[sp++]=idx; labels[idx]=comps.length;
+      let area=0,sx=0,sy=0,mnx=w,mxx=0,mny=h,mxy=0;
+      while(sp>0){
+        const cur=stack[--sp]; const cx=cur%w, cy=(cur-cx)/w;
+        area++; sx+=cx; sy+=cy;
+        if(cx<mnx)mnx=cx; if(cx>mxx)mxx=cx; if(cy<mny)mny=cy; if(cy>mxy)mxy=cy;
+        const id=comps.length; let n;
+        if(cx>0){ n=cur-1; if(mask[n]===1&&labels[n]===-1){ labels[n]=id; stack[sp++]=n; } }
+        if(cx<w-1){ n=cur+1; if(mask[n]===1&&labels[n]===-1){ labels[n]=id; stack[sp++]=n; } }
+        if(cy>0){ n=cur-w; if(mask[n]===1&&labels[n]===-1){ labels[n]=id; stack[sp++]=n; } }
+        if(cy<h-1){ n=cur+w; if(mask[n]===1&&labels[n]===-1){ labels[n]=id; stack[sp++]=n; } }
+      }
+      comps.push({area,cx:sx/area,cy:sy/area,mnx,mxx,mny,mxy});
+    }
+    return {comps, labels};
+  }
+
+  // Second pass: for each labeled pixel, accumulate max distance-from-centroid
+  // (to judge how "filled" the shape is) and average colour saturation.
+  function shapeAndColourStats(labels, comps, w, h, chroma){
+    const maxDistSq=new Float64Array(comps.length).fill(0);
+    const chromaSum=new Float64Array(comps.length).fill(0);
+    for(let idx=0; idx<w*h; idx++){
+      const lb=labels[idx]; if(lb<0) continue;
+      const x=idx%w, y=(idx-x)/w;
+      const c=comps[lb];
+      const dx=x-c.cx, dy=y-c.cy, d2=dx*dx+dy*dy;
+      if(d2>maxDistSq[lb]) maxDistSq[lb]=d2;
+      chromaSum[lb]+=chroma[idx];
+    }
+    comps.forEach((c,i)=>{
+      c.fillRatio = c.area / (Math.PI*Math.max(1,maxDistSq[i]));
+      c.avgChroma = chromaSum[i]/c.area;
+    });
+  }
+
+  function circleCandidate(mask,w,h,total){
+    const {comps}=connectedComponents(mask,w,h);
+    let best=null;
+    for(const c of comps){
+      if(c.area<0.04*total || c.area>0.92*total) continue;   // too small to be the dish, or too big to be anything but the surrounding background
+      // A blob touching 3+ of the 4 frame edges is almost certainly the background showing
+      // through around the dish, not the dish itself — this matters most on flattened,
+      // low-resolution thumbnails, where a textured desk/bench can look like one uniform fill.
+      const edgesTouched = (c.mnx<=1) + (c.mxx>=w-2) + (c.mny<=1) + (c.mxy>=h-2);
+      if(edgesTouched>=3) continue;
+      if(!best || c.area>best.area) best=c;
+    }
+    if(!best) return null;
+    const bw=best.mxx-best.mnx+1, bh=best.mxy-best.mny+1;
+    const bboxR=(bw+bh)/4, areaR=Math.sqrt(best.area/Math.PI);
+    const ratio=best.area/(Math.PI*bboxR*bboxR);
+    const aspect=Math.min(bw,bh)/Math.max(bw,bh);
+    return {cx:best.cx, cy:best.cy, radius:(bboxR+areaR)/2,
+            score:Math.max(0,1-Math.abs(1-ratio))*Math.min(1,aspect/0.85)};
+  }
+
+  // Finds the dish on a downsampled copy. Tries colour first (media vs paper); if that
+  // isn't circular (e.g. a clear plate on a dark bench) tries bright / dark regions too.
+  function redetectDish(){
+    if(!chromaCache) return;
+    const w0=baseW,h0=baseH, s=Math.max(1,Math.round(Math.max(w0,h0)/600));
+    const w=Math.floor(w0/s), h=Math.floor(h0/s), total=w*h;
+    const ch=new Uint8Array(total), lum=new Uint8Array(total);
+    const hc=new Array(256).fill(0), hl=new Array(256).fill(0);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      const p=(y*s)*w0+x*s, q=y*w+x;
+      ch[q]=chromaCache[p]; lum[q]=grayCache[p]; hc[ch[q]]++; hl[lum[q]]++;
+    }
+    const tc=Math.max(1,Math.min(254,otsu(hc,total)-(+dishSense.value))), tl=otsu(hl,total);
+    const mk=(arr,fn)=>{ const m=new Uint8Array(total); for(let i=0;i<total;i++) if(fn(arr[i])) m[i]=1; return m; };
+    let best=circleCandidate(mk(ch,v=>v>tc),w,h,total);
+    for(const c of [circleCandidate(mk(lum,v=>v>tl),w,h,total), circleCandidate(mk(lum,v=>v<tl),w,h,total)])
+      if(c && (!best || c.score>best.score+0.08)) best=c;
+    if(!best || best.score<0.6){ currentDish=null; dishMsg.style.display=manualDish?'none':'block'; }
+    else { currentDish={cx:best.cx*s, cy:best.cy*s, radius:best.radius*s}; dishMsg.style.display='none'; }
+    recomputeColonies();
+  }
+
+  function geometry(){
+    const w=baseW,h=baseH;
+    const dish = manualDish || currentDish || {cx:w/2, cy:h/2, radius:Math.min(w,h)*0.45};
+    const effR = dish.radius*(1-(+edgeCrop.value)/100);
+    const topCutY = dish.cy - effR + ((+topCrop.value)/100)*2*effR;
+    return {dish,effR,topCutY};
+  }
+
+  function recomputeColonies(){
+    if(!grayCache) return;
+    const w=baseW,h=baseH,N=w*h;
+    const {dish,effR,topCutY}=geometry();
+
+    const inc=new Uint8Array(N); let total=0;
+    const x0=Math.max(0,Math.floor(dish.cx-effR)), x1=Math.min(w,Math.ceil(dish.cx+effR));
+    const y0=Math.max(0,Math.floor(Math.max(dish.cy-effR, topCutY))), y1=Math.min(h,Math.ceil(dish.cy+effR));
+    for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){
+      const dx=x-dish.cx, dy=y-dish.cy;
+      if(dx*dx+dy*dy<=effR*effR){ inc[y*w+x]=1; total++; }
+    }
+    if(total<50){ render([],dish,effR,topCutY); return; }
+    if(sizeMode==='large'){ recomputeLarge(inc,total,dish,effR,topCutY); return; }
+
+    // Local background (masked blur) of luminance and normalised colour
+    const R=Math.max(3,Math.round(11*Math.max(w,h)/900)), den=boxBlurSum(Float32Array.from(inc),w,h,R);
+    const bgOf=arr=>{ const m=new Float32Array(N); for(let p=0;p<N;p++) m[p]=inc[p]?arr[p]:0;
+      const b=boxBlurSum(m,w,h,R); for(let p=0;p<N;p++) b[p]=b[p]/(den[p]+1e-6); return b; };
+    const bL=bgOf(LSm), bR=bgOf(NR), bG=bgOf(NG), bB=bgOf(NB);
+
+    const F={dark:new Float32Array(N), light:new Float32Array(N), colour:new Float32Array(N)};
+    for(let p=0;p<N;p++){
+      if(!inc[p]) continue;
+      F.dark[p]=bL[p]-LSm[p]; F.light[p]=LSm[p]-bL[p];
+      const dr=NR[p]-bR[p], dg=NG[p]-bG[p], db=NB[p]-bB[p];
+      F.colour[p]=Math.sqrt(dr*dr+dg*dg+db*db)*100;
+    }
+
+    // Robust stats (subsampled): median, MAD, and 99th-percentile "z" as a signal-strength score
+    const stats={};
+    for(const key of ['dark','light','colour']){
+      const vals=[]; let c=0;
+      for(let p=0;p<N;p++) if(inc[p] && (c++%3===0)) vals.push(F[key][p]);
+      const v=Float32Array.from(vals).sort(); const n=v.length;
+      const med=v[n>>1], p99=v[Math.floor(n*0.99)];
+      const dev=Float32Array.from(v,x=>Math.abs(x-med)).sort();
+      const mad=dev[n>>1]*1.4826+1e-6;
+      stats[key]={med,mad,z:(p99-med)/mad};
+    }
+    let use=mode;
+    if(mode==='auto'){
+      use = stats.colour.z > 1.6*stats.dark.z && stats.colour.z > stats.light.z ? 'colour'
+          : (stats.light.z > stats.dark.z ? 'light' : 'dark');
+    }
+    autoNote.textContent = mode==='auto' ? ('→ '+use) : '';
+
+    const k = 4 - (+threshOffset.value)/20;         // slider right = more sensitive (lower k)
+    const th = stats[use].med + k*stats[use].mad;
+    const mask=new Uint8Array(N);
+    const f=F[use];
+    for(let p=0;p<N;p++) if(inc[p] && f[p]>th) mask[p]=1;
+
+    const {comps,labels}=connectedComponents(mask,w,h);
+    shapeAndColourStats(labels, comps, w, h, chromaCache);
+    const minA=+minArea.value;
+    const maxA=total*((+maxArea.value)/1000);
+    const fillReq=(+fillMin.value)/100;
+    const chromaReq=+chromaMin.value;
+    const kept=comps.filter(c=>c.area>=minA && c.area<=maxA && c.fillRatio>=fillReq && c.avgChroma>=chromaReq)
+      .map(c=>({area:c.area, cx:c.cx, cy:c.cy, r:Math.max(3,Math.sqrt(c.area/Math.PI))}));
+    render(kept,dish,effR,topCutY);
+  }
+
+  function drawBaseNow(){ if(srcImg){ const g=geometry(); drawBase(g.dish,g.effR,g.topCutY); } }
+  function drawBase(dish,effR,topCutY){
+    ctx.clearRect(0,0,baseW,baseH);
+    ctx.drawImage(srcImg,0,0,baseW,baseH);
+    ctx.fillStyle='rgba(0,0,0,0.45)';
+    ctx.fillRect(0,0,baseW,baseH);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(dish.cx,dish.cy,effR,0,Math.PI*2); ctx.clip();
+    ctx.beginPath(); ctx.rect(0,topCutY,baseW,baseH-topCutY); ctx.clip();
+    ctx.drawImage(srcImg,0,0,baseW,baseH);
+    ctx.restore();
+
+    ctx.strokeStyle='#C0863C'; ctx.lineWidth=1.4; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(dish.cx,dish.cy,effR,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([5,4]);
+    ctx.beginPath();
+    const halfChord=Math.sqrt(Math.max(0,effR*effR-(topCutY-dish.cy)*(topCutY-dish.cy)));
+    ctx.moveTo(dish.cx-halfChord, topCutY); ctx.lineTo(dish.cx+halfChord, topCutY); ctx.stroke();
+    ctx.setLineDash([]);
+    // grab handle on the rim + centre mark
+    const hr=Math.max(5,baseW/150), hx=dish.cx+effR*Math.SQRT1_2, hy=dish.cy-effR*Math.SQRT1_2;
+    ctx.fillStyle='#C0863C'; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(hx,hy,hr,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(dish.cx-hr,dish.cy); ctx.lineTo(dish.cx+hr,dish.cy);
+    ctx.moveTo(dish.cx,dish.cy-hr); ctx.lineTo(dish.cx,dish.cy+hr); ctx.strokeStyle='#C0863C'; ctx.stroke();
+  }
+
+  // ---------- Large / touching colonies pipeline ----------
+  function chamferDT(sub,bw,bh){            // approx Euclidean distance transform, 1px zero padding
+    const W=bw+2,H=bh+2,d=new Float32Array(W*H);
+    for(let y=0;y<bh;y++) for(let x=0;x<bw;x++) if(sub[y*bw+x]) d[(y+1)*W+x+1]=1e9;
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){ const i=y*W+x; if(!d[i]) continue;
+      d[i]=Math.min(d[i],d[i-1]+1,d[i-W]+1,d[i-W-1]+1.414,d[i-W+1]+1.414); }
+    for(let y=H-2;y>=1;y--) for(let x=W-2;x>=1;x--){ const i=y*W+x; if(!d[i]) continue;
+      d[i]=Math.min(d[i],d[i+1]+1,d[i+W]+1,d[i+W+1]+1.414,d[i+W-1]+1.414); }
+    return {d,W,H};
+  }
+  function openMask(m,w,h){                 // 4-neighbour erode then dilate (removes 1-2px specks)
+    const e=new Uint8Array(w*h);
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x;
+      if(m[i]&&m[i-1]&&m[i+1]&&m[i-w]&&m[i+w]) e[i]=1; }
+    const o=new Uint8Array(w*h);
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x;
+      if(e[i]||e[i-1]||e[i+1]||e[i-w]||e[i+w]) o[i]=1; }
+    return o;
+  }
+  function fillSmallHoles(m,w,h,maxHole){   // fills enclosed gaps (e.g. dimples) up to maxHole px
+    const N=w*h, seen=new Uint8Array(N), stack=new Int32Array(N);
+    const flood=(seed,collect)=>{ let sp=0,n=0; stack[sp++]=seed; seen[seed]=1;
+      while(sp>0){ const c=stack[--sp]; if(collect) collect.push(c); n++;
+        const x=c%w, y=(c-x)/w, nb=[]; if(x>0)nb.push(c-1); if(x<w-1)nb.push(c+1); if(y>0)nb.push(c-w); if(y<h-1)nb.push(c+w);
+        for(const q of nb) if(!m[q]&&!seen[q]){ seen[q]=1; stack[sp++]=q; } }
+      return n; };
+    for(let x=0;x<w;x++){ if(!m[x]&&!seen[x]) flood(x); const b=(h-1)*w+x; if(!m[b]&&!seen[b]) flood(b); }
+    for(let y=0;y<h;y++){ const l=y*w, r=y*w+w-1; if(!m[l]&&!seen[l]) flood(l); if(!m[r]&&!seen[r]) flood(r); }
+    for(let i=0;i<N;i++) if(!m[i]&&!seen[i]){ const cells=[]; const n=flood(i,cells); if(n<=maxHole) for(const c of cells) m[c]=1; }
+  }
+  function otsuOn(vals,lo,hi){ const hist=new Array(256).fill(0); const sc=255/(hi-lo+1e-9);
+    for(const v of vals) hist[Math.max(0,Math.min(255,((v-lo)*sc)|0))]++;
+    return lo+(otsu(hist,vals.length)+1)/sc; }
+
+  function recomputeLarge(inc,total,dish,effR,topCutY){
+    const w=baseW,h=baseH,N=w*h;
+    const R=Math.max(10,Math.round(0.25*effR));           // background window ≈ plate-scale, bigger than any colony
+    const den=boxBlurSum(Float32Array.from(inc),w,h,R);
+    const bgOf=arr=>{ const m=new Float32Array(N); for(let p=0;p<N;p++) m[p]=inc[p]?arr[p]:0;
+      const b=boxBlurSum(m,w,h,R); for(let p=0;p<N;p++) b[p]=b[p]/(den[p]+1e-6); return b; };
+    const idx=[]; for(let p=0;p<N;p++) if(inc[p]) idx.push(p);
+    let feat=new Float32Array(N), use=mode;
+    if(mode==='colour'){
+      const bR=bgOf(NR),bG=bgOf(NG),bB=bgOf(NB);
+      for(const p of idx){ const a=NR[p]-bR[p],b=NG[p]-bG[p],c=NB[p]-bB[p]; feat[p]=Math.sqrt(a*a+b*b+c*c)*100; }
+    } else { const bL=bgOf(LSm); for(const p of idx) feat[p]=LSm[p]-bL[p]; }
+    const vals=Float32Array.from(idx,p=>feat[p]).sort(); const lo=vals[Math.floor(vals.length*0.01)], hi=vals[Math.floor(vals.length*0.99)];
+    const th=otsuOn(vals,lo,hi);
+    let above=0; for(const v of vals) if(v>th) above++;
+    if(mode==='auto') use = above/vals.length<=0.5 ? 'light' : 'dark';   // colonies = the minority side
+    autoNote.textContent = mode==='auto' ? ('→ '+use+' (large)') : '(large)';
+    let mask=new Uint8Array(N);
+    const darkSide = use==='dark';
+    for(const p of idx) mask[p]= (darkSide ? feat[p]<=th : feat[p]>th) ? 1 : 0;
+    mask=openMask(mask,w,h);
+    fillSmallHoles(mask,w,h,Math.max(30,Math.round(total*0.0015)));
+
+    const {comps,labels}=connectedComponents(mask,w,h);
+    const minA=Math.max(+minArea.value, Math.round(total*0.0002));
+    const cand=comps.filter(c=>c.area>=minA).map(c=>c.area).sort((a,b)=>a-b);
+    if(!cand.length){ render([],dish,effR,topCutY); return; }
+    const typ=cand[cand.length>>1], rt=Math.sqrt(typ/Math.PI);
+    shapeAndColourStats(labels, comps, w, h, chromaCache);
+    const kept=[], edgeBand=0.12*effR;
+    comps.forEach((c,id)=>{
+      if(c.area<minA) return;
+      // Rim glare shows up as thin arcs (low fill) or small specks hugging the dish edge
+      if(c.area<1.5*typ && c.fillRatio<0.38) return;
+      if(c.area<0.3*typ && effR-Math.hypot(c.cx-dish.cx,c.cy-dish.cy)<edgeBand) return;
+      if(c.area<1.5*typ){ kept.push({area:c.area,cx:c.cx,cy:c.cy,r:Math.sqrt(c.area/Math.PI)-2}); return; }
+      // split touching colonies: peaks of the distance transform, suppressed by their own radius
+      const bw=c.mxx-c.mnx+1, bh=c.mxy-c.mny+1, sub=new Uint8Array(bw*bh);
+      for(let y=0;y<bh;y++) for(let x=0;x<bw;x++) if(labels[(c.mny+y)*w+c.mnx+x]===id) sub[y*bw+x]=1;
+      const {d,W}=chamferDT(sub,bw,bh), cs=[];
+      for(let y=0;y<bh;y++) for(let x=0;x<bw;x++){ const v=d[(y+1)*W+x+1]; if(v>=0.5*rt) cs.push([v,x,y]); }
+      cs.sort((a,b)=>b[0]-a[0]);
+      const peaks=[];
+      for(const [v,x,y] of cs){
+        if(peaks.every(q=>Math.hypot(x-q[1],y-q[2])>=1.2*Math.max(v,q[0]))) peaks.push([v,x,y]);
+        if(peaks.length>60) break;
+      }
+      if(!peaks.length) kept.push({area:c.area,cx:c.cx,cy:c.cy,r:Math.sqrt(c.area/Math.PI)-2});
+      else peaks.forEach(([v,x,y])=>kept.push({area:Math.PI*v*v,cx:c.mnx+x,cy:c.mny+y,r:Math.max(3,v-2)}));
+    });
+    render(kept,dish,effR,topCutY);
+  }
+
+  function render(colonies,dish,effR,topCutY){
+    drawBase(dish,effR,topCutY);
+    ctx.strokeStyle='#2F6F62'; ctx.lineWidth=1.6;
+    colonies.forEach(c=>{ ctx.beginPath(); ctx.arc(c.cx,c.cy,c.r+2,0,Math.PI*2); ctx.stroke(); });
+
+    document.getElementById('countStat').textContent=colonies.length;
+    if(colonies.length>0){
+      const areas=colonies.map(c=>c.area);
+      const avg=areas.reduce((a,b)=>a+b,0)/areas.length;
+      document.getElementById('avgStat').textContent=avg.toFixed(1);
+      document.getElementById('rangeStat').textContent=Math.min(...areas)+' – '+Math.max(...areas);
+    } else {
+      document.getElementById('avgStat').textContent='0';
+      document.getElementById('rangeStat').textContent='–';
+    }
+    results.style.display='grid';
+  }
+
+  function canvasPt(e){ const r=canvas.getBoundingClientRect(); const k=baseW/r.width;
+    return {x:(e.clientX-r.left)*k, y:(e.clientY-r.top)*(baseH/r.height), k}; }
+  function hitTest(e){
+    const {dish,effR}=geometry(), p=canvasPt(e), d=Math.hypot(p.x-dish.cx,p.y-dish.cy), tol=Math.max(10,14*p.k);
+    return {p, type: Math.abs(d-effR)<=tol ? 'resize' : (d<effR ? 'move' : 'none')};
+  }
+  canvas.addEventListener('pointerdown', e=>{
+    if(!srcImg) return; const h=hitTest(e); if(h.type==='none') return;
+    canvas.setPointerCapture(e.pointerId);
+    const g=geometry(); manualDish={cx:g.dish.cx, cy:g.dish.cy, radius:g.dish.radius};
+    drag={type:h.type, sx:h.p.x, sy:h.p.y, ox:manualDish.cx, oy:manualDish.cy}; setDishMode();
+  });
+  canvas.addEventListener('pointermove', e=>{
+    if(!srcImg) return;
+    if(!drag){ const h=hitTest(e); canvas.style.cursor=h.type==='resize'?'nwse-resize':h.type==='move'?'move':'default'; return; }
+    const p=canvasPt(e);
+    if(drag.type==='move'){ manualDish.cx=drag.ox+(p.x-drag.sx); manualDish.cy=drag.oy+(p.y-drag.sy); }
+    else manualDish.radius=Math.max(20, Math.hypot(p.x-manualDish.cx,p.y-manualDish.cy)/(1-(+edgeCrop.value)/100));
+    drawBaseNow();
+  });
+  const endDrag=()=>{ if(drag){ drag=null; scheduleRecompute(0); } };
+  canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('wheel', e=>{
+    if(!srcImg || hitTest(e).type==='none') return;
+    e.preventDefault();
+    const g=geometry(); manualDish={cx:g.dish.cx, cy:g.dish.cy, radius:g.dish.radius*(e.deltaY<0?1.02:0.98)};
+    setDishMode(); drawBaseNow(); scheduleRecompute(250);
+  }, {passive:false});
+
+  downloadBtn.addEventListener('click', async ()=>{
+    canvas.toBlob(async (blob)=>{
+      if(!blob) return;
+      const downloads = window.claude ? await window.claude.use('downloads').catch(()=>null) : null;
+      if(downloads){
+        try{ await downloads.save({filename:'colony-count-annotated.png', data:blob}); return; }catch(e){ /* fall through */ }
+      }
+      // Fallback for contexts without the downloads capability (e.g. opened outside the artifact viewer)
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement('a');
+      link.download='colony-count-annotated.png'; link.href=url; link.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }, 'image/png');
+  });
+
+  resetBtn.addEventListener('click', ()=>{
+    srcImg=null; grayCache=null; chromaCache=null; currentDish=null; manualDish=null; setDishMode();
+    canvas.style.display='none'; placeholder.style.display='block';
+    results.style.display='none'; dishMsg.style.display='none';
+    downloadBtn.disabled=true; resetBtn.disabled=true; fileInput.value='';
+  });
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
