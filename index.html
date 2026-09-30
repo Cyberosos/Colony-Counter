@@ -136,6 +136,12 @@ h1,h2,h3{font-family:var(--font-display); font-weight:600; text-wrap:balance; ma
 
 /* controls */
 .ctrl{display:flex; flex-direction:column; gap:8px}
+.detect{padding:14px 16px; border-radius:16px; background:var(--accent-soft)}
+.detect > label{font-family:var(--font-display); font-size:17px; font-weight:600}
+.detect .val{font-family:var(--font-body); font-size:14px; font-weight:600; color:var(--ink)}
+.detends{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); margin-top:-4px}
+.detreset{min-height:32px; padding:0 12px; border-radius:999px; border:1.5px solid var(--line-strong); background:var(--surface); color:var(--ink); font-size:12.5px; font-weight:600}
+.detreset[hidden]{display:none}
 .ctrl > label, .ctrl .lab{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:15px; font-weight:500}
 .val{font-size:13px; color:var(--muted); font-weight:400; font-variant-numeric:tabular-nums; text-align:right}
 .hint{font-size:13px; color:var(--muted); line-height:1.4}
@@ -249,6 +255,12 @@ input[type=range]{width:100%; accent-color:var(--accent); min-height:28px}
     <div class="panes">
 
       <div class="pane" data-pane="fix">
+        <div class="ctrl detect">
+          <label for="detectLevel"><span>Detection</span><span class="val" id="detectVal">auto</span></label>
+          <input type="range" id="detectLevel" min="-100" max="100" step="5" value="0" disabled aria-describedby="detectHint">
+          <div class="detends"><span>Fewer, surer</span><button class="detreset" id="detectReset" hidden>Back to auto</button><span>Find more</span></div>
+          <div class="hint" id="detectHint">One slider for everything: right finds fainter and smaller colonies, left drops faint dots, specks and edge glare.</div>
+        </div>
         <h2>Something off?</h2>
         <p class="intro">Tap what you see. The app adjusts itself and recounts; watch the plate.</p>
         <div class="feedback" id="feedback" hidden>
@@ -1329,7 +1341,7 @@ input[type=range]{width:100%; accent-color:var(--accent); min-height:28px}
         fbAgain=document.getElementById('fbAgain'), fbLegend=document.getElementById('fbLegend');
   const fixBtns=document.querySelectorAll('[data-fix]');
 
-  function showWork(){ homeEl.hidden=true; workEl.hidden=false; resetFixes(); openTab('fix'); setFixesEnabled(false); resetView(); setDishEdit(false); }
+  function showWork(){ homeEl.hidden=true; workEl.hidden=false; resetFixes(); openTab('fix'); setFixesEnabled(false); resetDetect(); resetView(); setDishEdit(false); }
   function showHome(){ workEl.hidden=true; homeEl.hidden=false; resetFixes(); resetView(); setDishEdit(false); }
 
   // camera button (same pipeline as choosing a photo)
@@ -1393,7 +1405,7 @@ input[type=range]{width:100%; accent-color:var(--accent); min-height:28px}
   function getState(){
     return {thresh:+threshOffset.value, min:+minArea.value, max:+maxArea.value, fill:+fillMin.value, chroma:+chromaMin.value,
       edge:+edgeCrop.value, top:+topCrop.value, dishSense:+dishSense.value, mode, sizeMode, touchMode, shineOn, inkOn,
-      detail:detailDim, splitBias, rim:+rimGlare.value, manualDish:manualDish?Object.assign({},manualDish):null, baseW};
+      detail:detailDim, splitBias, rim:+rimGlare.value, det:+detectLevel.value, detBase:detBase?Object.assign({},detBase):null, manualDish:manualDish?Object.assign({},manualDish):null, baseW};
   }
   function applyState(s){
     threshOffset.value=s.thresh; minArea.value=s.min; maxArea.value=s.max; fillMin.value=s.fill; chromaMin.value=s.chroma;
@@ -1405,6 +1417,7 @@ input[type=range]{width:100%; accent-color:var(--accent); min-height:28px}
     splitBias=s.splitBias;
     const shineChanged=shineOn!==s.shineOn; shineOn=s.shineOn; shineBtns.forEach(x=>x.classList.toggle('active', (x.dataset.shine==='on')===shineOn));
     manualDish = s.manualDish ? (k=>({cx:s.manualDish.cx*k, cy:s.manualDish.cy*k, radius:s.manualDish.radius*k}))(baseW/s.baseW) : null;
+    detectLevel.value=s.det||0; detLast=s.det||0; detBase=s.detBase?Object.assign({},s.detBase):null; updateDetectLabel();
     syncLabels();
     if(s.detail!==detailDim){
       detailBtns.forEach(x=>x.classList.toggle('active', +x.dataset.detail===s.detail));
@@ -1440,19 +1453,20 @@ input[type=range]{width:100%; accent-color:var(--accent); min-height:28px}
     fixLevel={}; undoStack=[]; lastFix=null; feedback.hidden=true; deltaChip.hidden=true; undoBtn.hidden=true;
     clearTimeout(flashTimer); flash=null;
   }
-  function setFixesEnabled(on){ fixBtns.forEach(b=>b.disabled=!on); }
+  function setFixesEnabled(on){ fixBtns.forEach(b=>b.disabled=!on); detectLevel.disabled=!on; }
   function plural(n){ return n===1?'colony':'colonies'; }
 
   function applyFix(key){
     if(!srcImg || !lastGeom) return;
     if(key==='dish') return fixDish();
+    if(!FIX[key]) return;
     const steps=FIX[key], lvl=fixLevel[key]||0;
     if(lvl>=steps.length){
       showFeedback('That\'s as far as the automatic fix goes.', 'Fine-tune it yourself in the Sensitivity tab.', false, false);
       return;
     }
     const before=autoCols.slice(), prev=getState(), next=getState();
-    steps[lvl](next);
+    steps[lvl](next); next.det=0; next.detBase=null;
     undoStack.push({state:prev, key, lvl}); fixLevel[key]=lvl+1; lastFix=key;
     for(const k in TAG_OF) if(prev[k]!==next[k]) setTag(TAG_OF[k],false);
     applyState(next);
@@ -1532,7 +1546,7 @@ input[type=range]{width:100%; accent-color:var(--accent); min-height:28px}
 
   // ---------- hooks called by the engine ----------
   function uiAfterDraw(){ if(peeking){ ctx.clearRect(0,0,baseW,baseH); ctx.drawImage(srcImg,0,0,baseW,baseH); } countWord.textContent=plural(autoCols.length); updateCFU(); }
-  function uiAfterAuto(){ resetFixes(); setFixesEnabled(true); if(dishMsg.style.display==='block') setDishEdit(true); }
+  function uiAfterAuto(){ resetDetect(); resetFixes(); setFixesEnabled(true); if(dishMsg.style.display==='block') setDishEdit(true); }
 
   // ---------- zoom, pan and the locked dish circle ----------
   const stageEl=document.getElementById('stage'), zoomIn=document.getElementById('zoomIn'), zoomOut=document.getElementById('zoomOut'),
@@ -1640,6 +1654,46 @@ input[type=range]{width:100%; accent-color:var(--accent); min-height:28px}
   ['pointerup','pointercancel'].forEach(t=>canvas.addEventListener(t,endPointer));
   canvas.addEventListener('dblclick', e=>{ if(!srcImg || performance.now()-touchZoomT<700 || (dishEdit && hitTest(e).type!=='none')) return; zoomAt(e.clientX,e.clientY, view.s>1.05?1:3); });
   canvas.addEventListener('wheel', e=>{ if(!srcImg) return; e.preventDefault(); zoomAt(e.clientX,e.clientY, view.s*Math.exp(-e.deltaY*0.0015)); }, {passive:false});
+
+  // ---------- one Detection slider that moves every counting setting together ----------
+  const detectLevel=document.getElementById('detectLevel'), detectVal=document.getElementById('detectVal'), detectReset=document.getElementById('detectReset');
+  let detBase=null, detStart=null, detLast=0;
+  const clampN=(x,a,b)=>Math.min(b,Math.max(a,Math.round(x)));
+  function detectDerive(b,v){
+    const t=v/100;
+    if(t>=0) return {thresh:clampN(b.thresh+36*t,-60,60), min:clampN(b.min*(1-0.6*t),1,60), fill:clampN(b.fill-15*t,0,90),
+                     rim:clampN(b.rim*(1-t),0,100), chroma:clampN(b.chroma*(1-t),0,120)};
+    const u=-t;
+    return {thresh:clampN(b.thresh-40*u,-60,60), min:clampN(b.min*(1+1.6*u)+2*u,1,60), fill:clampN(b.fill+25*u,0,90),
+            rim:clampN(b.rim+60*u,0,100), chroma:lastUse==='colour'?clampN(b.chroma+20*u,0,120):b.chroma};
+  }
+  function updateDetectLabel(){
+    const v=+detectLevel.value;
+    detectVal.textContent = v===0 ? 'auto' : v>0 ? `+${v} · finding more` : `−${-v} · stricter`;
+    detectReset.hidden = v===0;
+  }
+  function resetDetect(){ detBase=null; detStart=null; detLast=0; detectLevel.value=0; updateDetectLabel(); }
+  detectLevel.addEventListener('input', ()=>{
+    if(!srcImg || !lastGeom) return;
+    if(!detStart){ const st=getState(); st.det=detLast; detStart={state:st, cols:autoCols.slice()}; }
+    if(!detBase) detBase={thresh:+threshOffset.value, min:+minArea.value, fill:+fillMin.value, rim:+rimGlare.value, chroma:+chromaMin.value};
+    const d=detectDerive(detBase,+detectLevel.value);
+    threshOffset.value=d.thresh; minArea.value=d.min; fillMin.value=d.fill; rimGlare.value=d.rim; chromaMin.value=d.chroma;
+    syncLabels(); updateDetectLabel(); scheduleRecompute(60);
+  });
+  detectLevel.addEventListener('change', ()=>{
+    if(!detStart) return;
+    clearTimeout(recTimer); recomputeColonies();
+    const st=detStart; detStart=null; detLast=+detectLevel.value;
+    if(+detectLevel.value===st.state.det) return;
+    undoStack.push({state:st.state, key:'detect', lvl:0}); lastFix=null; feedback.hidden=true;
+    const d=diffCols(st.cols,autoCols); startFlash(d.added,d.removed); updateChangeUI(st.cols.length);
+  });
+  detectReset.addEventListener('click', ()=>{
+    detectLevel.value=0; detectLevel.dispatchEvent(new Event('input')); detectLevel.dispatchEvent(new Event('change'));
+  });
+  // touching one of the individual settings makes the current settings the new starting point
+  [threshOffset, minArea, fillMin, chromaMin, rimGlare].forEach(el=>el.addEventListener('input', ()=>resetDetect()));
 
 })();
 
