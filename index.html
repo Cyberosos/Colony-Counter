@@ -1,173 +1,396 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Colony Counter</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#2F6F62">
+<meta name="theme-color" content="#7B4B2A">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Colonies">
-
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&amp;family=Work+Sans:wght@400;500;600&amp;display=swap">
 <style>
+/* Layout: one screen. The plate sits on top and never scrolls away; the count sits under it;
+   options live in a slide-up sheet with one tab open at a time. Desktop: sheet becomes a right column. */
 :root{
-  --ink:#1B1D1E; --paper:#FAF9F6; --panel:#F0EEE8; --line:#D8D4CA;
-  --teal:#2F6F62; --amber:#C0863C;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
-  --sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
-  box-sizing: border-box;
+  --bg:#F5EEE2; --surface:#FBF7F0; --surface-2:#EFE5D6; --line:#E2D5C2; --line-strong:#C9B49A;
+  --ink:#33251C; --muted:#6B5647; --accent:#7B4B2A; --on-accent:#FFF8EF; --accent-soft:#EFE3D1;
+  --flash:#C9832F; --bad:#9A3A26; --good:#4A6B46; --stage:#E9DECD;
+  --font-display:"Fraunces", Georgia, "Times New Roman", serif;
+  --font-body:"Work Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --shadow:0 -6px 24px rgba(51,37,28,0.10);
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){ --ink:#EDEAE2; --paper:#17181A; --panel:#1F2123; --line:#34363A; }
+  :root:not([data-theme="light"]){
+    --bg:#1C1511; --surface:#261D17; --surface-2:#30251E; --line:#3E3027; --line-strong:#5A483C;
+    --ink:#F2E6D6; --muted:#C2AE9B; --accent:#E2AE74; --on-accent:#1C1511; --accent-soft:#3A2C23;
+    --flash:#F0B465; --bad:#E08A6E; --good:#9CC495; --stage:#15100D; --shadow:0 -6px 24px rgba(0,0,0,0.35);
+    color-scheme: dark;
+  }
 }
-:root[data-theme="dark"]{ --ink:#EDEAE2; --paper:#17181A; --panel:#1F2123; --line:#34363A; }
-*{box-sizing:border-box;}
-html,body{height:100%;}
-body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); min-height:100%; padding: 28px 20px 60px; }
-.wrap{max-width:1040px; margin:0 auto;}
-header{margin-bottom:22px;}
-h1{font-size:26px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em;}
-.sub{opacity:0.62; font-size:14.5px; max-width:64ch; line-height:1.5;}
-.layout{display:grid; grid-template-columns: 300px 1fr; gap:20px;}
-@media (max-width: 760px){ .layout{grid-template-columns:1fr;} }
-.panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; }
-.panel h2{font-size:12.5px; text-transform:uppercase; letter-spacing:0.06em; opacity:0.55; margin:0 0 14px; font-weight:600;}
-.drop{ display:block; border:1.5px dashed var(--line); border-radius:8px; padding:22px 14px; text-align:center; cursor:pointer; font-size:13.5px; opacity:0.75; transition: border-color .15s, background .15s; -webkit-tap-highlight-color:transparent; }
-.drop:hover, .drop.drag{ border-color:var(--teal); background:rgba(47,111,98,0.06); }
-.drop input{display:none;}
-.ctrl{margin-top:16px;}
-.ctrl label{display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px;}
-.ctrl label span.val{font-family:var(--mono); font-size:12px; opacity:0.65;}
-.ctrl input[type=range]{width:100%; accent-color:var(--teal);}
-.hint{font-size:11.5px; opacity:0.5; margin-top:3px; line-height:1.4;}
-.toggle-row{display:flex; gap:8px; margin-top:6px;}
-.toggle-row button{ flex:1; padding:8px 6px; font-size:12.5px; border-radius:6px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
-.toggle-row button.active{ background:var(--teal); border-color:var(--teal); color:#fff; }
-.stagebox{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; min-height:340px; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:auto; }
-.stagebox canvas{max-width:100%; height:auto; border-radius:4px; display:block;}
-.placeholder{opacity:0.4; font-size:13.5px; text-align:center;}
-.dishmsg{ font-size:12px; background:rgba(192,134,60,0.15); border:1px solid var(--amber); color:var(--amber); padding:8px 12px; border-radius:6px; margin-bottom:12px; display:none; }
-.results{ display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-top:16px; }
-.stat{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 14px 12px; }
-.stat .big{font-family:var(--mono); font-size:28px; font-weight:600; line-height:1;}
-.stat .lbl{font-size:11.5px; opacity:0.55; margin-top:6px;}
-.actions{display:flex; gap:10px; margin-top:16px;}
-.actions button{ padding:10px 16px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--ink); font-size:13.5px; cursor:pointer; }
-.actions button.primary{ background:var(--teal); border-color:var(--teal); color:#fff; }
-.actions button:disabled{opacity:0.4; cursor:not-allowed;}
-footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-width:70ch;}
+:root[data-theme="dark"]{
+  --bg:#1C1511; --surface:#261D17; --surface-2:#30251E; --line:#3E3027; --line-strong:#5A483C;
+  --ink:#F2E6D6; --muted:#C2AE9B; --accent:#E2AE74; --on-accent:#1C1511; --accent-soft:#3A2C23;
+  --flash:#F0B465; --bad:#E08A6E; --good:#9CC495; --stage:#15100D; --shadow:0 -6px 24px rgba(0,0,0,0.35);
+  color-scheme: dark;
+}
+[hidden]{display:none !important}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-body); font-size:15px; line-height:1.45; -webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
+.sr-file{position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; pointer-events:none}
+h1,h2,h3{font-family:var(--font-display); font-weight:600; text-wrap:balance; margin:0; letter-spacing:-0.015em}
+
+/* ---------- home ---------- */
+#drop{min-height:100%; display:flex; justify-content:center; padding-inline:16px; padding-block:28px 24px}
+.home{width:100%; max-width:460px; display:flex; flex-direction:column; gap:22px}
+.brand{display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:600; font-size:19px}
+.home h1{font-size:40px; line-height:1.05; letter-spacing:-0.02em}
+.home .lede{margin:8px 0 0; font-size:16px; color:var(--muted); max-width:34ch}
+.pick{background:var(--surface); border:1.5px dashed var(--line-strong); border-radius:20px; padding:24px 20px 20px; display:flex; flex-direction:column; align-items:center; gap:14px}
+#drop.drag .pick{border-color:var(--accent); background:var(--accent-soft)}
+.pick .cam{width:76px; height:76px; border-radius:50%; background:var(--accent-soft); display:flex; align-items:center; justify-content:center; color:var(--accent)}
+.pick .or{font-size:13px; color:var(--muted)}
+.btn{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:54px; border-radius:14px; font-weight:600; font-size:16.5px; cursor:pointer; text-align:center; padding:0 16px}
+.btn.primary{background:var(--accent); color:var(--on-accent); border:none}
+.btn.quiet{background:transparent; color:var(--ink); border:1.5px solid var(--line-strong); font-weight:500}
+.tips{background:var(--surface-2); border-radius:16px; padding:16px 18px; display:flex; flex-direction:column; gap:10px}
+.tips h2{font-size:18px}
+.tip{display:flex; gap:12px; align-items:flex-start; font-size:15px}
+.tip svg{flex-shrink:0; margin-top:2px; color:var(--accent)}
+.private{display:flex; align-items:center; justify-content:center; gap:8px; font-size:13px; color:var(--muted); margin-top:auto; padding-top:6px}
+
+/* ---------- work screen ---------- */
+#work{height:100%; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto auto}
+.topbar{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 12px 2px}
+.back{display:flex; align-items:center; gap:4px; min-height:44px; padding:0 8px; border:none; background:none; color:var(--accent); font-weight:500; font-size:15px}
+.topbar .title{font-family:var(--font-display); font-weight:600; font-size:17px}
+.iconbtn{width:44px; height:44px; border-radius:12px; border:1.5px solid var(--line-strong); background:transparent; display:flex; align-items:center; justify-content:center; color:var(--ink)}
+.iconbtn:disabled{opacity:0.4}
+.stage{position:relative; min-height:0; display:flex; align-items:center; justify-content:center; padding:6px 16px; overflow:hidden}
+.stage canvas{display:block; max-width:100%; max-height:100%; width:auto; height:auto; border-radius:14px; background:var(--stage); transform-origin:0 0; will-change:transform; cursor:grab}
+.stage canvas.edit{cursor:move}
+.zoomctl{position:absolute; right:24px; top:14px; display:flex; flex-direction:column; gap:8px; z-index:2}
+.zoomctl button{width:44px; height:44px; border-radius:12px; border:none; background:var(--surface); color:var(--ink); box-shadow:0 2px 10px rgba(40,26,18,0.28); display:flex; align-items:center; justify-content:center; font-family:var(--font-body); font-size:12px; font-weight:600}
+.zoomctl button:disabled{opacity:0.45}
+.zoomctl .zlevel{font-size:12px; text-align:center; color:var(--ink); background:var(--surface); border-radius:8px; padding:2px 0; box-shadow:0 2px 10px rgba(40,26,18,0.2)}
+.peek{z-index:3}
+.peek.editc{left:24px; right:auto}
+.peek.editc[aria-pressed="true"]{background:var(--accent); color:var(--on-accent)}
+.overlay.editbar{top:14px; left:16px; transform:none; max-width:calc(100% - 100px); background:var(--accent); color:var(--on-accent); display:flex; align-items:center; gap:10px; padding:6px 6px 6px 14px; white-space:nowrap; z-index:2}
+.editbar button{min-height:32px; padding:0 12px; border-radius:999px; border:none; background:var(--on-accent); color:var(--accent); font-weight:600; font-size:13px}
+.editbar[hidden]{display:none}
+.overlay{position:absolute; left:50%; transform:translateX(-50%); border-radius:999px; padding:8px 14px; font-size:13.5px; font-weight:500; max-width:calc(100% - 48px); text-align:center}
+.autostatus{top:16px; background:var(--accent); color:var(--on-accent); display:flex; align-items:center; gap:8px; white-space:nowrap}
+.autostatus::before{content:""; width:14px; height:14px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent; animation:spin 0.9s linear infinite; flex-shrink:0}
+.autostatus:empty{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.peek{position:absolute; right:24px; bottom:14px; width:52px; height:52px; border-radius:50%; border:none; background:var(--surface); color:var(--ink); box-shadow:0 2px 10px rgba(40,26,18,0.28); display:flex; align-items:center; justify-content:center; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none}
+.peek.on{background:var(--accent); color:var(--on-accent)}
+.peeklabel{top:16px; background:var(--surface); color:var(--ink); box-shadow:0 2px 10px rgba(40,26,18,0.2)}
+.dishmsg{bottom:14px; background:var(--surface); color:var(--ink); border:1.5px solid var(--line-strong); border-radius:14px; display:none; font-weight:400; max-width:calc(100% - 172px)}
+
+.countbar{display:none; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px 12px; padding:4px 16px 10px}
+.count{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; min-width:0}
+.count .num{font-family:var(--font-display); font-size:46px; font-weight:600; line-height:1; letter-spacing:-0.02em; font-variant-numeric:tabular-nums}
+.count .word{font-size:17px; color:var(--muted); font-weight:500}
+.delta{font-size:13px; font-weight:600; padding:4px 10px; border-radius:999px; background:var(--accent-soft); color:var(--ink); font-variant-numeric:tabular-nums}
+.undo{min-height:44px; padding:0 16px; border-radius:12px; border:1.5px solid var(--line-strong); background:var(--surface); font-weight:600; display:flex; align-items:center; gap:6px}
+
+.sheet{background:var(--surface); border-radius:22px 22px 0 0; box-shadow:var(--shadow); display:flex; flex-direction:column; min-height:0; max-height:50vh; padding-bottom:env(safe-area-inset-bottom, 0px)}
+.handle{display:flex; justify-content:center; align-items:center; width:100%; height:26px; border:none; background:none; padding:0; touch-action:none}
+.handle span{width:44px; height:5px; border-radius:3px; background:var(--line-strong)}
+.tabs{display:flex; gap:6px; overflow-x:auto; padding:0 12px 10px; scrollbar-width:none; flex-shrink:0}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0; min-height:40px; padding:0 14px; border-radius:999px; border:1.5px solid var(--line); background:transparent; font-size:14px; font-weight:500; white-space:nowrap; color:var(--ink)}
+.tab.active{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600}
+.panes{overflow-y:auto; overscroll-behavior:contain; padding:4px 16px 18px; min-height:0}
+.sheet.collapsed .panes{display:none}
+.pane{display:flex; flex-direction:column; gap:16px}
+.pane h2{font-size:19px}
+.pane .intro{margin:-8px 0 0; color:var(--muted); font-size:14px}
+
+/* quick fixes */
+.fixes{display:flex; flex-direction:column; border-radius:16px; background:var(--bg); overflow:hidden}
+.fix{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:54px; padding:0 16px; border:none; border-top:1px solid var(--line); background:transparent; text-align:left; font-size:15.5px; color:var(--ink)}
+.fix:first-child{border-top:none}
+.fix svg{flex-shrink:0; color:var(--accent)}
+.fix:disabled{opacity:0.45; cursor:default}
+.feedback{border-radius:16px; background:var(--accent-soft); padding:14px 16px; display:flex; flex-direction:column; gap:12px}
+.feedback .msg{font-size:15px; font-weight:500}
+.feedback .sub{font-size:13px; color:var(--muted); margin-top:2px}
+.feedback .row{display:flex; gap:10px}
+.feedback .row button{flex:1; min-height:46px; border-radius:12px; font-weight:600; font-size:15px}
+.feedback .again{background:var(--accent); color:var(--on-accent); border:none}
+.feedback .undo2{background:transparent; border:1.5px solid var(--line-strong)}
+.legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--muted)}
+.legend span{display:flex; align-items:center; gap:6px}
+.dot{width:12px; height:12px; border-radius:50%; border:2.5px solid var(--flash)}
+.xmark{color:var(--bad); font-weight:700}
+
+/* controls */
+.ctrl{display:flex; flex-direction:column; gap:8px}
+.ctrl > label, .ctrl .lab{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:15px; font-weight:500}
+.val{font-size:13px; color:var(--muted); font-weight:400; font-variant-numeric:tabular-nums; text-align:right}
+.hint{font-size:13px; color:var(--muted); line-height:1.4}
+input[type=range]{width:100%; accent-color:var(--accent); min-height:28px}
+.seg{display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:4px; padding:4px; border-radius:12px; background:var(--surface-2)}
+.seg button{min-height:40px; border:none; border-radius:9px; background:transparent; font-size:14px; color:var(--ink); padding:0 6px}
+.seg button.active{background:var(--accent); color:var(--on-accent); font-weight:600}
+.ctrl input:disabled{opacity:0.4}
+.autotag{font-size:11px; font-weight:600; letter-spacing:0.03em; color:var(--accent); border:1.5px solid currentColor; border-radius:6px; padding:0 5px; margin-left:8px; vertical-align:2px}
+.autotag:empty{display:none}
+.rowbtn[aria-pressed="true"]{background:var(--accent); color:var(--on-accent); border-color:var(--accent)}
+.rowbtn{min-height:46px; border-radius:12px; border:1.5px solid var(--line-strong); background:transparent; font-weight:600; font-size:15px; display:flex; align-items:center; justify-content:center; gap:8px; color:var(--ink)}
+.stats{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
+.stat{background:var(--bg); border-radius:12px; padding:10px 12px}
+.stat .v{font-family:var(--font-display); font-size:20px; font-variant-numeric:tabular-nums}
+.stat .l{font-size:12.5px; color:var(--muted)}
+.autobox ul{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; font-size:14.5px}
+.cfu{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
+.cfu label{font-size:13px; color:var(--muted); display:block; margin-bottom:6px}
+.cfu select, .cfu input{width:100%; min-height:48px; border-radius:12px; border:1.5px solid var(--line-strong); background:var(--surface); padding:0 12px; font-size:16px; color:var(--ink)}
+.cfuout{background:var(--bg); border-radius:14px; padding:14px 16px}
+.cfuout .v{font-family:var(--font-display); font-size:30px; font-variant-numeric:tabular-nums}
+.cfuout .how{font-size:13px; color:var(--muted)}
+.warn{font-size:13px; color:var(--bad)}
+
+@media (min-width: 900px){
+  #work{grid-template-columns:minmax(0,1fr) 400px; grid-template-rows:auto minmax(0,1fr) auto}
+  .topbar{grid-column:1 / -1; padding:10px 20px 4px}
+  .stage{grid-column:1; grid-row:2; padding:8px 24px}
+  .countbar{grid-column:1; grid-row:3; padding:6px 24px 18px}
+  .sheet{grid-column:2; grid-row:2 / 4; max-height:none; border-radius:20px; margin:0 20px 20px 0; box-shadow:none; border:1px solid var(--line)}
+  .handle{display:none}
+  .tabs{flex-wrap:wrap; padding:16px 16px 12px}
+  .sheet.collapsed .panes{display:block}
+}
+@media (prefers-reduced-motion: reduce){ .autostatus::before{animation:none} }
 </style>
 </head>
 <body>
-<div class="wrap">
-<header>
-  <h1>Colony Counter</h1>
-  <div class="sub">Upload a petri dish photo. The dish itself is detected automatically by colour, so notebook paper, handwriting, and anything outside the plate is excluded before counting even starts.</div>
-</header>
-<div class="layout">
-  <div class="panel">
-    <h2>Image</h2>
-    <label class="drop" id="drop" for="file">Click or drop a photo here<input type="file" id="file" accept="image/*"></label>
 
-    <h2 style="margin-top:20px;">Dish detection <span id="dishMode" style="font-family:var(--mono);opacity:.7;text-transform:none;letter-spacing:0;"></span></h2>
-    <div class="hint" style="margin:-4px 0 8px;">Drag the circle on the photo to move it. Drag its edge (or scroll) to resize.</div>
-    <div class="toggle-row"><button id="autoDishBtn">Auto-detect dish</button></div>
-    <div class="ctrl">
-      <label>Sensitivity <span class="val" id="dishSenseVal">0</span></label>
-      <input type="range" id="dishSense" min="-60" max="60" value="0">
-      <div class="hint">Adjust if the detected circle misses the plate or bleeds into the background.</div>
-    </div>
-    <div class="ctrl">
-      <label>Shrink dish edge <span class="val" id="edgeVal">5%</span></label>
-      <input type="range" id="edgeCrop" min="0" max="25" value="5">
-      <div class="hint">Trims dish rim / glare just inside the detected boundary.</div>
-    </div>
-    <div class="ctrl">
-      <label>Ignore top of dish (label) <span class="val" id="topVal">15%</span></label>
-      <input type="range" id="topCrop" min="0" max="45" value="15">
-      <div class="hint">Caps off handwriting or text written on the media itself, near the top.</div>
-    </div>
 
-    <h2 style="margin-top:20px;">Colony detection</h2>
-    <div class="ctrl">
-      <label>Colony size</label>
-      <div class="toggle-row">
-        <button data-size="small" class="active">Small / scattered</button>
-        <button data-size="large">Large / touching</button>
-      </div>
-      <div class="hint">Pick <b>Large</b> for big colonies that touch or overlap: it fills hollow centres and splits touching colonies. (Max size, ring and colour-saturation filters don't apply in Large mode.)</div>
+<main id="drop">
+  <div class="home" id="home">
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="color:var(--accent)"><circle cx="14" cy="14" r="11.5"/><circle cx="10" cy="11" r="1.6" fill="currentColor"/><circle cx="17" cy="9.5" r="1.3" fill="currentColor"/><circle cx="16" cy="17" r="1.8" fill="currentColor"/><circle cx="9.5" cy="18" r="1.2" fill="currentColor"/></svg>
+      Colony Counter
     </div>
-    <div class="ctrl">
-      <label>Detect colonies by <span class="val" id="autoNote"></span></label>
-      <div class="toggle-row" style="flex-wrap:wrap;">
-        <button data-mode="auto" class="active">Auto</button>
-        <button data-mode="colour">Colour</button>
-        <button data-mode="dark">Darker</button>
-        <button data-mode="light">Lighter</button>
-      </div>
-      <div class="hint">Auto compares each spot with its local surroundings and picks whichever cue (colour or darkness) stands out most. Override if it guesses wrong.</div>
+    <div>
+      <h1>Count a plate</h1>
+      <p class="lede">Take a photo from straight above. The app finds the dish, leaves out writing and glare, and counts every colony.</p>
     </div>
-    <div class="ctrl">
-      <label>Analysis detail</label>
-      <div class="toggle-row">
-        <button data-detail="700">Standard</button>
-        <button data-detail="1100" class="active">High</button>
-        <button data-detail="1600">Max</button>
-      </div>
-      <div class="hint">Sized to the dish itself, not the whole photo — a close-up and a far-away shot of the same plate now get the same detail. Raise this to catch tiny colonies (slower to compute).</div>
-      <div class="hint" id="detailInfo" style="font-family:var(--mono);"></div>
+    <div class="pick">
+      <div class="cam" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.3" r="3.6"/></svg></div>
+      <label class="btn primary" for="camFile">Take a photo</label>
+      <input class="sr-file" type="file" id="camFile" accept="image/*" capture="environment">
+      <label class="btn quiet" for="file">Choose a photo</label>
+      <input class="sr-file" type="file" id="file" accept="image/*">
+      <div class="or">or drop a photo here</div>
     </div>
-    <div class="ctrl">
-      <label>Sensitivity <span class="val" id="threshVal">0</span></label>
-      <input type="range" id="threshOffset" min="-60" max="60" value="0">
-      <div class="hint">Left = fewer, more confident colonies. Right = catches faint ones too.</div>
+    <div class="tips">
+      <h2>For the best count</h2>
+      <div class="tip"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg><div>Hold the phone flat, straight above the dish.</div></div>
+      <div class="tip"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg><div>Let the dish fill most of the photo.</div></div>
+      <div class="tip"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg><div>A plain dark or light surface under the dish works best.</div></div>
     </div>
-    <div class="ctrl">
-      <label>Min colony size <span class="val" id="minVal">8 px</span></label>
-      <input type="range" id="minArea" min="1" max="60" value="8">
-      <div class="hint">Lower it to catch tiny colonies. On scratched plates too low a value picks up fringe along the scratches.</div>
+    <div class="private"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Counting happens on your device. Photos are never uploaded.</div>
+  </div>
+</main>
+
+<div id="work" hidden>
+  <header class="topbar">
+    <button class="back" id="resetBtn" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>New photo</button>
+    <div class="title">Colony Counter</div>
+    <button class="iconbtn" id="downloadBtn" disabled aria-label="Save counted image"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></svg></button>
+  </header>
+
+  <div class="stage" id="stage">
+    <div id="placeholder" hidden></div>
+    <canvas id="canvas" style="display:none; touch-action:none"></canvas>
+    <div class="overlay autostatus" id="autoStatus"></div>
+    <button class="peek" id="peekBtn" aria-label="Hold to see the original photo" title="Hold to see the original photo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3.2"/></svg></button>
+    <div class="overlay peeklabel" id="peekLabel" hidden>Original photo</div>
+    <div class="zoomctl" id="zoomCtl">
+      <button id="zoomIn" aria-label="Zoom in" title="Zoom in"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button id="zoomOut" aria-label="Zoom out" title="Zoom out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
     </div>
-    <div class="ctrl">
-      <label>Max colony size <span class="val" id="maxVal">0.5%</span></label>
-      <input type="range" id="maxArea" min="1" max="30" value="5">
-      <div class="hint">Filters out merged colony clusters, as % of countable dish area.</div>
-    </div>
-    <div class="ctrl">
-      <label>Reject rings / reflections <span class="val" id="fillVal">25%</span></label>
-      <input type="range" id="fillMin" min="0" max="90" value="25">
-      <div class="hint">A real colony is a filled dot. Glare on the media often shows up as a hollow bright ring — raise this to drop shapes that aren't solid.</div>
-    </div>
-    <div class="ctrl">
-      <label>Require colour saturation <span class="val" id="chromaVal">off</span></label>
-      <input type="range" id="chromaMin" min="0" max="120" value="0">
-      <div class="hint">Reflections are usually near-white/grey. Raise this on colour plates (e.g. blue/teal on TBX) to require actual colour, not just brightness.</div>
-    </div>
+    <button class="peek editc" id="editCircleBtn" aria-pressed="false" aria-label="Move circle" title="Move the dish circle"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke-dasharray="3 2.4"/><path d="M12 8v8M8 12h8"/></svg></button>
+    <div class="overlay editbar" id="editBar" hidden><span>Drag to fit the dish</span><button id="editDone">Done</button></div>
+    <div class="overlay dishmsg" id="dishMsg">The dish wasn't found. Move circle is on: drag the circle onto the plate, and drag its edge to resize it.</div>
   </div>
 
-  <div>
-    <div class="dishmsg" id="dishMsg">Couldn't find the dish automatically. Drag the circle onto the plate and drag its edge to resize it, or try the dish sensitivity slider.</div>
-    <div class="stagebox" id="stage">
-      <div class="placeholder" id="placeholder">No image loaded yet</div>
-      <canvas id="canvas" style="display:none;touch-action:none;"></canvas>
+  <div class="countbar" id="results">
+    <div class="count">
+      <span class="num" id="countStat">0</span><span class="word" id="countWord">colonies</span>
+      <span class="delta" id="deltaChip" hidden></span>
     </div>
-    <div class="results" id="results" style="display:none;">
-      <div class="stat"><div class="big" id="countStat">0</div><div class="lbl">Colonies counted</div></div>
-      <div class="stat"><div class="big" id="avgStat">0</div><div class="lbl">Avg. size (px²)</div></div>
-      <div class="stat"><div class="big" id="rangeStat">–</div><div class="lbl">Size range (px²)</div></div>
-    </div>
-    <div class="actions">
-      <button class="primary" id="downloadBtn" disabled>Download annotated image</button>
-      <button id="resetBtn" disabled>Reset</button>
-    </div>
+    <button class="undo" id="undoBtn" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Undo</button>
   </div>
+
+  <section class="sheet" id="sheet" aria-label="Options">
+    <button class="handle" id="sheetToggle" aria-expanded="true" aria-label="Hide options"><span></span></button>
+    <div class="tabs" role="tablist">
+      <button class="tab active" role="tab" data-tab="fix" aria-selected="true">Fix it</button>
+      <button class="tab" role="tab" data-tab="dish" aria-selected="false">Dish</button>
+      <button class="tab" role="tab" data-tab="colonies" aria-selected="false">Colonies</button>
+      <button class="tab" role="tab" data-tab="sens" aria-selected="false">Sensitivity</button>
+      <button class="tab" role="tab" data-tab="filters" aria-selected="false">Filters</button>
+      <button class="tab" role="tab" data-tab="cfu" aria-selected="false">CFU/mL</button>
+      <button class="tab" role="tab" data-tab="auto" aria-selected="false">Auto-setup</button>
+    </div>
+    <div class="panes">
+
+      <div class="pane" data-pane="fix">
+        <h2>Something off?</h2>
+        <p class="intro">Tap what you see. The app adjusts itself and recounts; watch the plate.</p>
+        <div class="feedback" id="feedback" hidden>
+          <div><div class="msg" id="fbMsg"></div><div class="sub" id="fbSub"></div></div>
+          <div class="legend" id="fbLegend"><span><i class="dot"></i>found</span><span><b class="xmark">×</b>taken away</span></div>
+          <div class="row"><button class="again" id="fbAgain">Go further</button></div>
+        </div>
+        <div class="fixes">
+          <button class="fix" data-fix="missing"><span>Some colonies have no circle</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+          <button class="fix" data-fix="extra"><span>Glare or specks are counted</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+          <button class="fix" data-fix="merged"><span>Two colonies counted as one</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+          <button class="fix" data-fix="split"><span>One colony counted as two</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+          <button class="fix" data-fix="dish"><span>The circle misses the dish</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <p class="hint">Prefer to adjust it yourself? Every setting is in the other tabs.</p>
+      </div>
+
+      <div class="pane" data-pane="dish" hidden>
+        <h2>Dish &amp; writing <span class="val" id="dishMode"></span></h2>
+        <button class="rowbtn" id="dishEditBtn" aria-pressed="false">Move the circle</button>
+        <p class="hint">The circle is locked so zooming and panning never move it. Turn this on, then drag the circle to move it, or drag its edge to resize it.</p>
+        <button class="rowbtn" id="autoDishBtn">Find the dish again</button>
+        <div class="ctrl">
+          <div class="lab"><span>Ignore handwriting<span class="autotag" id="tag-ink"></span></span><span class="val" id="inkNote"></span></div>
+          <div class="seg"><button data-ink="on" class="active">On</button><button data-ink="off">Off</button></div>
+          <div class="hint">Leaves marker writing (blue or black) out of the count, wherever it is on the plate.</div>
+        </div>
+        <div class="ctrl">
+          <label for="edgeCrop"><span>Trim the dish edge</span><span class="val" id="edgeVal">5%</span></label>
+          <input type="range" id="edgeCrop" min="0" max="25" value="5">
+          <div class="hint">Skips the rim, where reflections gather.</div>
+        </div>
+        <div class="ctrl">
+          <label for="rimGlare"><span>Edge reflections</span><span class="val" id="rimVal">off</span></label>
+          <input type="range" id="rimGlare" min="0" max="100" value="0">
+          <div class="hint">Slide right if glare on the dish edge is being counted. Careful with white colonies: near the edge they can look like glare.</div>
+        </div>
+        <div class="ctrl">
+          <label for="topCrop"><span>Leave out the top<span class="autotag" id="tag-top"></span></span><span class="val" id="topVal">15%</span></label>
+          <input type="range" id="topCrop" min="0" max="45" value="15">
+          <div class="hint">For a label or writing across the top of the dish.</div>
+        </div>
+        <div class="ctrl">
+          <label for="dishSense"><span>Dish finding</span><span class="val" id="dishSenseVal">0</span></label>
+          <input type="range" id="dishSense" min="-60" max="60" value="0">
+          <div class="hint">Change this if the circle keeps landing in the wrong place.</div>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="colonies" hidden>
+        <h2>Colonies</h2>
+        <div class="ctrl">
+          <div class="lab"><span>Colony size<span class="autotag" id="tag-size"></span></span></div>
+          <div class="seg"><button data-size="small" class="active">Small / scattered</button><button data-size="large">Large / touching</button></div>
+          <div class="hint">Large is for big colonies that touch or overlap. It also counts small colonies sitting between them.</div>
+        </div>
+        <div class="ctrl">
+          <div class="lab"><span>Colonies stuck together</span></div>
+          <div class="seg"><button data-touch="separate" class="active">Count each one</button><button data-touch="one">Count as one</button></div>
+        </div>
+        <div class="ctrl">
+          <div class="lab"><span>Ignore glare<span class="autotag" id="tag-shine"></span></span><span class="val" id="shineNote"></span></div>
+          <div class="seg"><button data-shine="on" class="active">On</button><button data-shine="off">Off</button></div>
+          <div class="hint">Paints over bright glare before counting. Turn off for white or cream colonies.</div>
+        </div>
+        <div class="ctrl">
+          <div class="lab"><span>Spot colonies by</span><span class="val" id="autoNote"></span></div>
+          <div class="seg"><button data-mode="auto" class="active">Auto</button><button data-mode="colour">Colour</button><button data-mode="dark">Darker</button><button data-mode="light">Lighter</button></div>
+          <div class="hint">Auto picks whichever stands out most on this plate.</div>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="sens" hidden>
+        <h2>Sensitivity &amp; size</h2>
+        <div class="ctrl">
+          <label for="threshOffset"><span>Sensitivity</span><span class="val" id="threshVal">0</span></label>
+          <input type="range" id="threshOffset" min="-60" max="60" value="0">
+          <div class="hint">Left: fewer, surer colonies. Right: catches faint ones too.</div>
+        </div>
+        <div class="ctrl">
+          <label for="minArea"><span>Smallest colony<span class="autotag" id="tag-min"></span></span><span class="val" id="minVal">8 px</span></label>
+          <input type="range" id="minArea" min="1" max="60" value="8">
+          <div class="hint">Anything smaller is treated as a speck.</div>
+        </div>
+        <div class="ctrl">
+          <label for="maxArea"><span>Largest colony<span class="autotag" id="tag-max"></span></span><span class="val" id="maxVal">0.5%</span></label>
+          <input type="range" id="maxArea" min="1" max="30" value="5">
+          <div class="hint">As a share of the dish. Bigger shapes are ignored.</div>
+        </div>
+        <div class="ctrl">
+          <div class="lab"><span>Detail<span class="autotag" id="tag-detail"></span></span></div>
+          <div class="seg"><button data-detail="700">Standard</button><button data-detail="1100" class="active">High</button><button data-detail="1600">Max</button></div>
+          <div class="hint" id="detailInfo"></div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v" id="avgStat">0</div><div class="l">Average colony size (px²)</div></div>
+          <div class="stat"><div class="v" id="rangeStat">–</div><div class="l">Size range (px²)</div></div>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="filters" hidden>
+        <h2>Filters</h2>
+        <div class="ctrl">
+          <label for="fillMin"><span>Ignore rings</span><span class="val" id="fillVal">25%</span></label>
+          <input type="range" id="fillMin" min="0" max="90" value="25">
+          <div class="hint">A colony is a filled dot. Reflections are often hollow rings; raise this to drop them.</div>
+        </div>
+        <div class="ctrl">
+          <label for="chromaMin"><span>Must have colour</span><span class="val" id="chromaVal">off</span></label>
+          <input type="range" id="chromaMin" min="0" max="120" value="0">
+          <div class="hint">On coloured media (like blue-green on TBX), ignores grey and white spots.</div>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="cfu" hidden>
+        <h2>CFU per mL</h2>
+        <div class="cfu">
+          <div><label for="cfuDil">Dilution plated</label>
+            <select id="cfuDil">
+              <option value="0">10⁰ (undiluted)</option><option value="-1">10⁻¹</option><option value="-2">10⁻²</option><option value="-3">10⁻³</option><option value="-4">10⁻⁴</option><option value="-5">10⁻⁵</option><option value="-6" selected>10⁻⁶</option><option value="-7">10⁻⁷</option><option value="-8">10⁻⁸</option><option value="-9">10⁻⁹</option>
+            </select></div>
+          <div><label for="cfuVol">Volume plated (mL)</label><input id="cfuVol" type="number" inputmode="decimal" min="0" step="0.01" value="0.1"></div>
+        </div>
+        <div class="cfuout"><div class="v" id="cfuOut">–</div><div class="how" id="cfuHow"></div></div>
+        <div class="warn" id="cfuWarn" hidden>Most labs trust plates with about 30 to 300 colonies. Outside that range, treat this as an estimate.</div>
+      </div>
+
+      <div class="pane" data-pane="auto" hidden>
+        <h2>What auto-setup chose</h2>
+        <div class="autobox" id="autoBox" hidden>
+          <ul id="autoList"></ul>
+        </div>
+        <p class="hint">Settings chosen automatically are marked <span class="autotag" style="margin-left:0">auto</span> in the other tabs. Change any of them and your choice is kept.</p>
+        <button class="rowbtn" id="rerunAuto"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8.5"/><path d="M20 4v4.5h-4.5"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 15.5"/><path d="M4 20v-4.5h4.5"/></svg>Run auto-setup again</button>
+      </div>
+
+    </div>
+  </section>
 </div>
-<footer class="note">Runs entirely in your browser — nothing is uploaded anywhere. The dish is found by looking for the largest patch of saturated colour (media) against the paler background; very pale/clear media or a very colourful background surface can throw this off, in which case nudge the sensitivity slider. Overlapping colonies that visually merge into one blob are counted as one. Glare on the media is filtered by shape (a real colony is a filled dot, not a hollow ring) and, optionally, by requiring actual colour rather than near-white brightness.</footer>
-</div>
+
 <script>
+
 (function(){
   const fileInput = document.getElementById('file');
   const drop = document.getElementById('drop');
@@ -179,7 +402,7 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
   const resetBtn = document.getElementById('resetBtn');
   const dishMsg = document.getElementById('dishMsg');
 
-  let srcImg=null, baseW=0, baseH=0, grayCache=null, chromaCache=null, currentDish=null, manualDish=null, detailDim=1100, dishFracR=null, recTimer=null, drag=null;
+  let srcImg=null, baseW=0, baseH=0, grayCache=null, chromaCache=null, currentDish=null, manualDish=null, detailDim=1100, dishFracR=null, colourTarget=null, recTimer=null, drag=null, autoCols=[], lastGeom=null, lastUse='', splitBias=0, rimGlare=document.getElementById('rimGlare'), touchMode='separate', rgbRaw=null, inkOn=true, inkMask=null, inkKey='', inkMarks=0, shineOn=true, shinePixels=0, anaChroma=null;
 
   const dishSense=document.getElementById('dishSense'), edgeCrop=document.getElementById('edgeCrop'),
         topCrop=document.getElementById('topCrop'), threshOffset=document.getElementById('threshOffset'),
@@ -202,15 +425,30 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     maxVal.textContent = (maxArea.value/10).toFixed(1)+'%';
     fillVal.textContent = fillMin.value+'%';
     chromaVal.textContent = (+chromaMin.value===0) ? 'off' : chromaMin.value;
+    const rv=+rimGlare.value; document.getElementById('rimVal').textContent = rv===0?'off':rv<35?'gentle':rv<70?'medium':'strong';
   }
   syncLabels();
 
   const sizeBtns=document.querySelectorAll('[data-size]');
-  sizeBtns.forEach(b=>b.addEventListener('click', ()=>{
-    sizeMode=b.dataset.size; sizeBtns.forEach(x=>x.classList.toggle('active', x===b));
-    [maxArea,fillMin,chromaMin].forEach(el=>{ const c=el.closest('.ctrl'); c.style.opacity=sizeMode==='large'?'0.35':''; el.disabled=sizeMode==='large'; });
-    scheduleRecompute(0);
+  const inkBtns=document.querySelectorAll('[data-ink]'), inkNote=document.getElementById('inkNote');
+  inkBtns.forEach(b=>b.addEventListener('click', ()=>{
+    inkOn=b.dataset.ink==='on'; inkBtns.forEach(x=>x.classList.toggle('active', x===b)); setTag('ink',false); scheduleRecompute(0);
   }));
+  const touchBtns=document.querySelectorAll('[data-touch]');
+  touchBtns.forEach(b=>b.addEventListener('click', ()=>{
+    touchMode=b.dataset.touch; touchBtns.forEach(x=>x.classList.toggle('active', x===b)); scheduleRecompute(0);
+  }));
+  const shineBtns=document.querySelectorAll('[data-shine]'), shineNote=document.getElementById('shineNote');
+  shineBtns.forEach(b=>b.addEventListener('click', ()=>{
+    shineOn = b.dataset.shine==='on'; shineBtns.forEach(x=>x.classList.toggle('active', x===b)); setTag('shine',false);
+    if(srcImg){ buildCaches(); updateShineNote(); recomputeColonies(); }
+  }));
+  function updateShineNote(){ shineNote.textContent = srcImg && shineOn ? (shinePixels ? 'glare removed' : 'no glare found') : ''; }
+  function applySize(v){
+    sizeMode=v; sizeBtns.forEach(x=>x.classList.toggle('active', x.dataset.size===v));
+    [maxArea,fillMin,chromaMin].forEach(el=>{ const c=el.closest('.ctrl'); c.style.opacity=sizeMode==='large'?'0.35':''; el.disabled=sizeMode==='large'; });
+  }
+  sizeBtns.forEach(b=>b.addEventListener('click', ()=>{ applySize(b.dataset.size); setTag('size',false); scheduleRecompute(0); }));
   modeBtns.forEach(b=>b.addEventListener('click', ()=>{
     mode=b.dataset.mode; modeBtns.forEach(x=>x.classList.toggle('active', x===b)); recomputeColonies();
   }));
@@ -218,12 +456,13 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
   function scheduleRecompute(ms){ clearTimeout(recTimer); recTimer=setTimeout(recomputeColonies, ms===undefined?150:ms); }
   function setDishMode(){ dishModeEl.textContent = srcImg ? (manualDish?'· manual':'· auto') : ''; if(manualDish) dishMsg.style.display='none'; }
   dishSense.addEventListener('input', ()=>{ syncLabels(); manualDish=null; setDishMode(); clearTimeout(recTimer); recTimer=setTimeout(redetectDish,150); });
-  [edgeCrop, topCrop, threshOffset, minArea, maxArea, fillMin, chromaMin].forEach(el=>{
-    el.addEventListener('input', ()=>{ syncLabels(); if(el===edgeCrop||el===topCrop) drawBaseNow(); scheduleRecompute(); });
+  [edgeCrop, topCrop, threshOffset, minArea, maxArea, fillMin, chromaMin, rimGlare].forEach(el=>{
+    el.addEventListener('input', ()=>{ syncLabels(); if(el===edgeCrop||el===topCrop) drawBaseNow(); scheduleRecompute();
+      if(el===topCrop) setTag('top',false); if(el===minArea) setTag('min',false); if(el===maxArea) setTag('max',false); });
   });
   autoDishBtn.addEventListener('click', ()=>{ manualDish=null; setDishMode(); redetectDish(); });
   detailBtns.forEach(b=>b.addEventListener('click', ()=>{
-    detailBtns.forEach(x=>x.classList.toggle('active', x===b));
+    detailBtns.forEach(x=>x.classList.toggle('active', x===b)); setTag('detail',false);
     const oldW=baseW; detailDim=+b.dataset.detail;
     if(srcImg) prepare(oldW);
   }));
@@ -239,11 +478,13 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     reader.onload=e=>{
       const img=new Image();
       img.onload=()=>{
-        srcImg=img; manualDish=null;
+        srcImg=img; manualDish=null; autoCols=[]; lastGeom=null;
         placeholder.style.display='none'; canvas.style.display='block';
         downloadBtn.disabled=false; resetBtn.disabled=false;
         dishFracR=quickDetectDishFrac();
-        prepare(0);
+        showWork();
+        prepare(0, true);
+        autoSetup();
       };
       img.src=e.target.result;
     };
@@ -278,7 +519,7 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
   // diameter — not the whole photo. A tight close-up and a far-away shot of the same
   // plate then get analysed at the same effective detail, and we never spend megapixels
   // on background outside the dish just because the photo itself is huge.
-  function prepare(oldW){
+  function prepare(oldW, skipCount){
     const srcLong=Math.max(srcImg.width,srcImg.height);
     let longSide;
     if(dishFracR){
@@ -291,7 +532,7 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     baseW=Math.round(srcImg.width*scale); baseH=Math.round(srcImg.height*scale);
     if(manualDish && oldW){ const k=baseW/oldW; manualDish={cx:manualDish.cx*k, cy:manualDish.cy*k, radius:manualDish.radius*k}; }
     canvas.width=baseW; canvas.height=baseH;
-    buildCaches(); setDishMode(); redetectDish();
+    buildCaches(); updateShineNote(); setDishMode(); redetectDish(skipCount);
     const dpx = dishFracR ? Math.round(2*dishFracR*Math.max(baseW,baseH)) : Math.round(2*(currentDish?currentDish.radius:Math.min(baseW,baseH)*0.45));
     detailInfo.textContent = `working at ${baseW}×${baseH}px · dish ≈ ${dpx}px across`;
   }
@@ -300,6 +541,7 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     const off=document.createElement('canvas'); off.width=baseW; off.height=baseH;
     const octx=off.getContext('2d'); octx.drawImage(srcImg,0,0,baseW,baseH);
     const data=octx.getImageData(0,0,baseW,baseH).data;
+    rgbRaw=data;
     const w=baseW,h=baseH,N=w*h;
     grayCache=new Uint8ClampedArray(N);
     chromaCache=new Uint8ClampedArray(N);
@@ -310,6 +552,10 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
       chromaCache[p]=Math.max(r,g,b)-Math.min(r,g,b);
       ch[0][p]=r; ch[1][p]=g; ch[2][p]=b;
     }
+    // Paint over shine before any colony analysis (dish detection above keeps the raw photo).
+    shinePixels = shineOn ? removeShine(ch,w,h) : 0;
+    anaChroma=new Uint8ClampedArray(N);
+    for(let p=0;p<N;p++){ const r=ch[0][p],g=ch[1][p],b=ch[2][p]; anaChroma[p]=Math.max(r,g,b)-Math.min(r,g,b); }
     // 3x3 box smoothing to tame sensor noise, then luminance + brightness-normalised colour
     // Luminance keeps fine detail (tiny colonies); colour is smoothed more at higher
     // resolution, because JPEG colour fringing along scratches/edges is 1-2px wide.
@@ -323,6 +569,50 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
       const r=sc[0][p]/dc, g=sc[1][p]/dc, b=sc[2][p]/dc, L=(r+g+b)/3+1e-3;
       NR[p]=r/L; NG[p]=g/L; NB[p]=b/L;
     }
+  }
+
+  // ---------- Shine (specular highlight) removal ----------
+  // A shiny colony reflects the lamp as a small, near-white, very bright dot or crescent.
+  // Left alone, that spot gets counted as its own colony, splits one colony into two, or
+  // leaves a hole that makes a real colony look like a ring. We find those spots —
+  // near-white, much brighter than their surroundings, and small — and paint them over
+  // with the colour around them. Large white areas (paper, labels) are never touched.
+  function removeShine(ch,w,h){
+    const N=w*h, mn=new Float32Array(N);
+    for(let p=0;p<N;p++) mn[p]=Math.min(ch[0][p],ch[1][p],ch[2][p]);
+    const R=Math.max(4,Math.round(Math.max(w,h)/90));
+    const den=boxBlurSum(new Float32Array(N).fill(1),w,h,R), loc=boxBlurSum(mn,w,h,R);
+    const cand=new Uint8Array(N);
+    for(let p=0;p<N;p++){
+      const m=mn[p], mx=Math.max(ch[0][p],ch[1][p],ch[2][p]);
+      if(m>=195 && (mx-m)/(mx+1)<=0.24 && m-loc[p]/den[p]>=26) cand[p]=1;
+    }
+    const {comps,labels}=connectedComponents(cand,w,h);
+    const maxA=Math.max(30,Math.round(N*0.0004));
+    let mask=new Uint8Array(N);
+    for(let p=0;p<N;p++){ const lb=labels[p]; if(lb>=0 && comps[lb].area<=maxA) mask[p]=1; }
+    // grow a little to catch the soft halo JPEG leaves around each highlight
+    const grow=Math.max(1,Math.round(Math.max(w,h)/600));
+    for(let k=0;k<grow;k++){
+      const nx=new Uint8Array(N);
+      for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x;
+        if(mask[i]||mask[i-1]||mask[i+1]||mask[i-w]||mask[i+w]) nx[i]=1; }
+      mask=nx;
+    }
+    const valid=new Float32Array(N); let count=0;
+    for(let p=0;p<N;p++){ if(mask[p]) count++; else valid[p]=1; }
+    if(!count) return 0;
+    // fill from valid neighbours, widening the window until every masked pixel is filled
+    for(const r of [2,4,8,16]){
+      const vw=boxBlurSum(valid,w,h,r);
+      const sums=ch.map(c=>{ const t=new Float32Array(N); for(let p=0;p<N;p++) t[p]=c[p]*valid[p]; return boxBlurSum(t,w,h,r); });
+      let left=0; const done=[];
+      for(let p=0;p<N;p++){ if(valid[p]) continue;
+        if(vw[p]>0.5){ for(let c=0;c<3;c++) ch[c][p]=sums[c][p]/vw[p]; done.push(p); } else left++; }
+      for(const p of done) valid[p]=1;
+      if(!left) break;
+    }
+    return count;
   }
 
   // Box sum along x (r = radius). If transposeOnly is true, does the same along y.
@@ -389,8 +679,8 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
   // Second pass: for each labeled pixel, accumulate max distance-from-centroid
   // (to judge how "filled" the shape is) and average colour saturation.
   function shapeAndColourStats(labels, comps, w, h, chroma){
-    const maxDistSq=new Float64Array(comps.length).fill(0);
-    const chromaSum=new Float64Array(comps.length).fill(0);
+    const n=comps.length, maxDistSq=new Float64Array(n), chromaSum=new Float64Array(n),
+          sxx=new Float64Array(n), syy=new Float64Array(n), sxy=new Float64Array(n);
     for(let idx=0; idx<w*h; idx++){
       const lb=labels[idx]; if(lb<0) continue;
       const x=idx%w, y=(idx-x)/w;
@@ -398,10 +688,18 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
       const dx=x-c.cx, dy=y-c.cy, d2=dx*dx+dy*dy;
       if(d2>maxDistSq[lb]) maxDistSq[lb]=d2;
       chromaSum[lb]+=chroma[idx];
+      sxx[lb]+=dx*dx; syy[lb]+=dy*dy; sxy[lb]+=dx*dy;
     }
     comps.forEach((c,i)=>{
       c.fillRatio = c.area / (Math.PI*Math.max(1,maxDistSq[i]));
       c.avgChroma = chromaSum[i]/c.area;
+      // shape spread along its longest and shortest direction (second moments)
+      const a=sxx[i]/c.area, b=sxy[i]/c.area, d=syy[i]/c.area;
+      const m=(a+d)/2, q=Math.sqrt(((a-d)/2)**2+b*b), l1=m+q, l2=Math.max(1e-6,m-q);
+      c.elong=Math.sqrt(l1/l2);                         // 1 = round, ~1.7 = two touching colonies
+      c.theta=0.5*Math.atan2(2*b,a-d);                  // direction of the long axis
+      c.halfLen=2*Math.sqrt(l1);                        // ≈ half the length along the long axis
+      c.halfWid=2*Math.sqrt(l2);                        // ≈ half the width across it
     });
   }
 
@@ -428,7 +726,7 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
 
   // Finds the dish on a downsampled copy. Tries colour first (media vs paper); if that
   // isn't circular (e.g. a clear plate on a dark bench) tries bright / dark regions too.
-  function redetectDish(){
+  function redetectDish(skipCount){
     if(!chromaCache) return;
     const w0=baseW,h0=baseH, s=Math.max(1,Math.round(Math.max(w0,h0)/600));
     const w=Math.floor(w0/s), h=Math.floor(h0/s), total=w*h;
@@ -445,7 +743,7 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
       if(c && (!best || c.score>best.score+0.08)) best=c;
     if(!best || best.score<0.6){ currentDish=null; dishMsg.style.display=manualDish?'none':'block'; }
     else { currentDish={cx:best.cx*s, cy:best.cy*s, radius:best.radius*s}; dishMsg.style.display='none'; }
-    recomputeColonies();
+    if(!skipCount) recomputeColonies();
   }
 
   function geometry(){
@@ -468,6 +766,9 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
       const dx=x-dish.cx, dy=y-dish.cy;
       if(dx*dx+dy*dy<=effR*effR){ inc[y*w+x]=1; total++; }
     }
+    const wm=writingMask();
+    if(wm){ for(let p=0;p<N;p++) if(inc[p] && wm[p]){ inc[p]=0; total--; } }
+    inkNote.textContent = inkOn && srcImg ? (inkMarks ? (inkMarks===1?'1 mark left out':inkMarks+' marks left out') : 'none found') : '';
     if(total<50){ render([],dish,effR,topCutY); return; }
     if(sizeMode==='large'){ recomputeLarge(inc,total,dish,effR,topCutY); return; }
 
@@ -478,10 +779,12 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     const bL=bgOf(LSm), bR=bgOf(NR), bG=bgOf(NG), bB=bgOf(NB);
 
     const F={dark:new Float32Array(N), light:new Float32Array(N), colour:new Float32Array(N)};
+    const DR=new Float32Array(N), DG=new Float32Array(N), DB=new Float32Array(N);
     for(let p=0;p<N;p++){
       if(!inc[p]) continue;
       F.dark[p]=bL[p]-LSm[p]; F.light[p]=LSm[p]-bL[p];
       const dr=NR[p]-bR[p], dg=NG[p]-bG[p], db=NB[p]-bB[p];
+      DR[p]=dr; DG[p]=dg; DB[p]=db;
       F.colour[p]=Math.sqrt(dr*dr+dg*dg+db*db)*100;
     }
 
@@ -496,12 +799,44 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
       const mad=dev[n>>1]*1.4826+1e-6;
       stats[key]={med,mad,z:(p99-med)/mad};
     }
+    // Colour refinement: learn which way colonies shift in colour from the agar, using the
+    // strongest detections, then score only shifts in that direction. Halos around colonies
+    // (e.g. dark red on pink) shift a different way and drop out. If the strong pixels point
+    // in several directions (colonies of more than one colour) the plain test is kept.
+    colourTarget=null;
+    {
+      const cs=stats.colour, strongT=cs.med+8*cs.mad;
+      let sx=0,sy=0,sz=0,sl=0,n=0;
+      for(let p=0;p<N;p++){ if(!inc[p] || F.colour[p]<=strongT) continue;
+        sx+=DR[p]; sy+=DG[p]; sz+=DB[p]; sl+=Math.hypot(DR[p],DG[p],DB[p]); n++; }
+      const len=Math.hypot(sx,sy,sz), coherence = sl>0 ? len/sl : 0;
+      if(n>=30 && coherence>=0.6){
+        const vx=sx/len, vy=sy/len, vz=sz/len; colourTarget={vx,vy,vz,coherence};
+        const proj=new Float32Array(N);
+        for(let p=0;p<N;p++) if(inc[p]){ proj[p]=(DR[p]*vx+DG[p]*vy+DB[p]*vz)*100; }
+        F.colour=proj;
+        const vals=[]; let c=0;
+        for(let p=0;p<N;p++) if(inc[p] && (c++%3===0)) vals.push(proj[p]);
+        const v=Float32Array.from(vals).sort(); const m=v.length;
+        const med=v[m>>1], p99=v[Math.floor(m*0.99)];
+        const dev=Float32Array.from(v,x=>Math.abs(x-med)).sort();
+        const mad=dev[m>>1]*1.4826+1e-6;
+        stats.colour={med,mad,z:(p99-med)/mad, z0:cs.z};
+      }
+    }
+
     let use=mode;
     if(mode==='auto'){
-      use = stats.colour.z > 1.6*stats.dark.z && stats.colour.z > stats.light.z ? 'colour'
+      const hi=Math.max(stats.dark.z,stats.light.z), lo=Math.min(stats.dark.z,stats.light.z);
+      const cz = stats.colour.z0 !== undefined ? stats.colour.z0 : stats.colour.z;   // decide on the plain colour score
+      // Colonies darker than the agar in some places and lighter in others (e.g. orange
+      // colonies on agar with light-pink and dark-red zones): brightness can't separate
+      // them everywhere, but colour can.
+      const brightnessAmbiguous = lo > 0.6*hi && cz >= hi;
+      use = brightnessAmbiguous || (cz > 1.6*stats.dark.z && cz > stats.light.z) ? 'colour'
           : (stats.light.z > stats.dark.z ? 'light' : 'dark');
     }
-    autoNote.textContent = mode==='auto' ? ('→ '+use) : '';
+    autoNote.textContent = mode==='auto' ? ('→ '+use) : ''; lastUse=use;
 
     const k = 4 - (+threshOffset.value)/20;         // slider right = more sensitive (lower k)
     const th = stats[use].med + k*stats[use].mad;
@@ -510,16 +845,48 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     for(let p=0;p<N;p++) if(inc[p] && f[p]>th) mask[p]=1;
 
     const {comps,labels}=connectedComponents(mask,w,h);
-    shapeAndColourStats(labels, comps, w, h, chromaCache);
+    shapeAndColourStats(labels, comps, w, h, anaChroma);
     const minA=+minArea.value;
     const maxA=total*((+maxArea.value)/1000);
     const fillReq=(+fillMin.value)/100;
     const chromaReq=+chromaMin.value;
-    const kept=comps.filter(c=>c.area>=minA && c.area<=maxA && c.fillRatio>=fillReq && c.avgChroma>=chromaReq)
-      .map(c=>({area:c.area, cx:c.cx, cy:c.cy, r:Math.max(3,Math.sqrt(c.area/Math.PI))}));
-    render(kept,dish,effR,topCutY);
+    const ok=[]; comps.forEach((c,id)=>{ if(c.area>=minA && c.area<=maxA && c.fillRatio>=fillReq && c.avgChroma>=chromaReq) ok.push(id); });
+    // Touching colonies: a blob well above the typical colony size that isn't round is split.
+    // A single big round colony (high fill) is left alone.
+    const areas=ok.map(id=>comps[id].area).sort((a,b)=>a-b);
+    const typ = areas.length>=8 ? areas[areas.length>>1] : 0, rt=Math.sqrt(typ/Math.PI);
+    const kept=[];
+    for(const id of ok){
+      const c=comps[id];
+      let pieces=null;
+      if(touchMode==='separate' && typ){
+        // big and not round, or clearly stretched (two colonies side by side make a ~1.7:1 peanut)
+        // while still colony-sized and not ragged (a smear or a glare streak is ragged / small)
+        // splitBias: +1/+2 split more readily, -1 more cautiously (set by the quick fixes)
+        const big = c.area>=(1.8-0.2*splitBias)*typ && c.fillRatio<0.75;
+        // Clearly stretched (≥1.8) is split; mildly stretched (1.5–1.8) only if the colour
+        // dips between two centres — a colony with a scratch attached has a single hump.
+        const colonySized = c.area>=1.0*typ && c.fillRatio>=0.35;
+        const eHi=1.8-0.12*splitBias, eLo=1.5-0.1*splitBias, cr=Math.max(0.02,0.10-0.03*splitBias);
+        const stretched = colonySized && (c.elong>=eHi || (c.elong>=eLo && creaseDepth(c,f,w,h)>=cr));
+        if(big || stretched){
+          pieces = splitTouching(c,id,labels,w,rt,true);
+          if(pieces.length<2 && (stretched || c.elong>=eHi)) pieces = splitAlongAxis(c);
+          if(pieces.length<2) pieces=null;
+        }
+      }
+      if(pieces) pieces.forEach(k=>kept.push(k));
+      else kept.push({area:c.area, cx:c.cx, cy:c.cy, r:Math.max(3,Math.sqrt(c.area/Math.PI))});
+    }
+    render(rimGlareFilter(kept,dish,effR),dish,effR,topCutY);
   }
 
+  function shadeWriting(){
+    if(!inkOn || !inkMask || !lastGeom) return;
+    const id=ctx.getImageData(0,0,baseW,baseH), d=id.data;
+    for(let p=0;p<inkMask.length;p++) if(inkMask[p]){ const i=p*4; d[i]=d[i]*0.45; d[i+1]=d[i+1]*0.45; d[i+2]=d[i+2]*0.45; }
+    ctx.putImageData(id,0,0);
+  }
   function drawBaseNow(){ if(srcImg){ const g=geometry(); drawBase(g.dish,g.effR,g.topCutY); } }
   function drawBase(dish,effR,topCutY){
     ctx.clearRect(0,0,baseW,baseH);
@@ -581,6 +948,66 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     for(const v of vals) hist[Math.max(0,Math.min(255,((v-lo)*sc)|0))]++;
     return lo+(otsu(hist,vals.length)+1)/sc; }
 
+  // Splits one blob made of several touching colonies: each colony shows up as a peak of
+  // the distance-to-edge map; peaks closer together than their own radius are merged.
+  function splitTouching(c,id,labels,w,rt,needNeck){
+    const bw=c.mxx-c.mnx+1, bh=c.mxy-c.mny+1, sub=new Uint8Array(bw*bh);
+    for(let y=0;y<bh;y++) for(let x=0;x<bw;x++) if(labels[(c.mny+y)*w+c.mnx+x]===id) sub[y*bw+x]=1;
+    const {d,W}=chamferDT(sub,bw,bh), cs=[];
+    for(let y=0;y<bh;y++) for(let x=0;x<bw;x++){ const v=d[(y+1)*W+x+1]; if(v>=0.5*rt) cs.push([v,x,y]); }
+    cs.sort((a,b)=>b[0]-a[0]);
+    // thickness at a point of the blob (distance to its edge)
+    const at=(x,y)=>d[(Math.round(y)+1)*W+Math.round(x)+1];
+    // true when the blob narrows clearly somewhere between two centres (a "neck")
+    const neck=(a,b)=>{
+      const L=Math.hypot(b[1]-a[1],b[2]-a[2]), n=Math.max(2,Math.ceil(L*2));
+      let lo=Infinity;
+      for(let i=1;i<n;i++){ const t=i/n; lo=Math.min(lo, at(a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t)); }
+      return lo <= 0.7*Math.min(a[0],b[0]);
+    };
+    const peaks=[];
+    for(const pk of cs){
+      const [v,x,y]=pk;
+      if(peaks.every(q=>Math.hypot(x-q[1],y-q[2])>=1.2*Math.max(v,q[0]) && (!needNeck || neck(pk,q)))) peaks.push(pk);
+      if(peaks.length>60) break;
+    }
+    if(peaks.length<=1) return [{area:c.area,cx:c.cx,cy:c.cy,r:Math.max(3,Math.sqrt(c.area/Math.PI))}];
+    return peaks.map(([v,x,y])=>({area:Math.PI*v*v,cx:c.mnx+x,cy:c.mny+y,r:Math.max(3,v)}));
+  }
+
+  // Colour strength along a blob's long axis. Two fused colonies show two strong centres
+  // with a weaker crease between them; one colony (even with a scratch attached) shows a
+  // single hump. Returns how deep the crease is (0 = none).
+  function creaseDepth(c,f,w,h){
+    const ux=Math.cos(c.theta), uy=Math.sin(c.theta), vx=-uy, vy=ux;
+    const L=0.9*c.halfLen, wd=Math.max(1,c.halfWid*0.5), n=Math.max(9,Math.round(L*2));
+    const prof=[];
+    for(let i=0;i<n;i++){
+      const t=-L+2*L*i/(n-1); let sum=0,cnt=0;
+      for(let q=-wd;q<=wd;q+=0.75){
+        const x=Math.round(c.cx+t*ux+q*vx), y=Math.round(c.cy+t*uy+q*vy);
+        if(x>=0&&y>=0&&x<w&&y<h){ sum+=f[y*w+x]; cnt++; }
+      }
+      prof.push(cnt?sum/cnt:0);
+    }
+    const third=Math.floor(n/3);
+    const a=Math.max(...prof.slice(0,third+1)), b=Math.max(...prof.slice(n-1-third));
+    const mid=Math.min(...prof.slice(third,n-third));
+    const top=Math.min(a,b);
+    return top>0 ? Math.max(0,(top-mid)/top) : 0;
+  }
+
+  // For colonies fused so tightly there's no neck: the blob's width gives one colony's
+  // size, its length gives how many sit in a row, and they're placed evenly along it.
+  function splitAlongAxis(c){
+    const r=Math.max(3,c.halfWid);
+    const k=Math.max(2,Math.min(4,Math.round(c.halfLen/c.halfWid)));
+    const s=2*Math.max(r*0.6, 0.9*c.halfLen - r)/(k-1);
+    const ux=Math.cos(c.theta), uy=Math.sin(c.theta), out=[];
+    for(let i=0;i<k;i++){ const t=(i-(k-1)/2)*s; out.push({area:c.area/k, cx:c.cx+t*ux, cy:c.cy+t*uy, r:Math.max(3,Math.min(r, s/2+1))}); }
+    return out;
+  }
+
   function recomputeLarge(inc,total,dish,effR,topCutY){
     const w=baseW,h=baseH,N=w*h;
     const R=Math.max(10,Math.round(0.25*effR));           // background window ≈ plate-scale, bigger than any colony
@@ -609,39 +1036,95 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     const cand=comps.filter(c=>c.area>=minA).map(c=>c.area).sort((a,b)=>a-b);
     if(!cand.length){ render([],dish,effR,topCutY); return; }
     const typ=cand[cand.length>>1], rt=Math.sqrt(typ/Math.PI);
-    shapeAndColourStats(labels, comps, w, h, chromaCache);
-    const kept=[], edgeBand=0.12*effR;
+    shapeAndColourStats(labels, comps, w, h, anaChroma);
+    const kept=[], edgeBand=0.12*effR, keptBig=new Uint8Array(comps.length);
     comps.forEach((c,id)=>{
       if(c.area<minA) return;
       // Rim glare shows up as thin arcs (low fill) or small specks hugging the dish edge
       if(c.area<1.5*typ && c.fillRatio<0.38) return;
       if(c.area<0.3*typ && effR-Math.hypot(c.cx-dish.cx,c.cy-dish.cy)<edgeBand) return;
+      keptBig[id]=1;
       if(c.area<1.5*typ){ kept.push({area:c.area,cx:c.cx,cy:c.cy,r:Math.sqrt(c.area/Math.PI)-2}); return; }
-      // split touching colonies: peaks of the distance transform, suppressed by their own radius
-      const bw=c.mxx-c.mnx+1, bh=c.mxy-c.mny+1, sub=new Uint8Array(bw*bh);
-      for(let y=0;y<bh;y++) for(let x=0;x<bw;x++) if(labels[(c.mny+y)*w+c.mnx+x]===id) sub[y*bw+x]=1;
-      const {d,W}=chamferDT(sub,bw,bh), cs=[];
-      for(let y=0;y<bh;y++) for(let x=0;x<bw;x++){ const v=d[(y+1)*W+x+1]; if(v>=0.5*rt) cs.push([v,x,y]); }
-      cs.sort((a,b)=>b[0]-a[0]);
-      const peaks=[];
-      for(const [v,x,y] of cs){
-        if(peaks.every(q=>Math.hypot(x-q[1],y-q[2])>=1.2*Math.max(v,q[0]))) peaks.push([v,x,y]);
-        if(peaks.length>60) break;
-      }
-      if(!peaks.length) kept.push({area:c.area,cx:c.cx,cy:c.cy,r:Math.sqrt(c.area/Math.PI)-2});
-      else peaks.forEach(([v,x,y])=>kept.push({area:Math.PI*v*v,cx:c.mnx+x,cy:c.mny+y,r:Math.max(3,v-2)}));
+      if(touchMode==='one') kept.push({area:c.area,cx:c.cx,cy:c.cy,r:Math.max(3,Math.sqrt(c.area/Math.PI)-2)});
+      else splitTouching(c,id,labels,w,rt,false).forEach(k=>kept.push(k));
     });
-    render(kept,dish,effR,topCutY);
+
+    // Second pass: small colonies of a different kind between the big ones (e.g. small deep-pink
+    // colonies among big pale ones). They don't stand out by lightness, but they do by colour
+    // against their immediate surroundings. The colour ring at each big colony's edge is skipped.
+    {
+      let big=new Uint8Array(N); for(let p=0;p<N;p++){ const lb=labels[p]; if(lb>=0 && keptBig[lb]) big[p]=1; }
+      const g=Math.max(2,Math.round(Math.max(w,h)/300));
+      for(let t=0;t<g;t++){ const nx=new Uint8Array(N);
+        for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x; if(big[i]||big[i-1]||big[i+1]||big[i-w]||big[i+w]) nx[i]=1; } big=nx; }
+      const Rs=Math.max(3,Math.round(11*Math.max(w,h)/900));
+      const denS=boxBlurSum(Float32Array.from(inc,(v,p)=>v&&!big[p]?1:0),w,h,Rs);
+      const bgS=arr=>{ const m2=new Float32Array(N); for(const p of idx) if(!big[p]) m2[p]=arr[p];
+        const b2=boxBlurSum(m2,w,h,Rs); for(let p=0;p<N;p++) b2[p]=b2[p]/(denS[p]+1e-6); return b2; };
+      const sR=bgS(NR), sG=bgS(NG), sB=bgS(NB);
+      const colf=new Float32Array(N), vals=[];
+      for(const p of idx){ if(big[p]) continue; const v=Math.hypot(NR[p]-sR[p],NG[p]-sG[p],NB[p]-sB[p])*100; colf[p]=v; vals.push(v); }
+      if(vals.length>200){
+        const v=Float32Array.from(vals).sort(), med=v[v.length>>1];
+        const mad=Float32Array.from(v,x=>Math.abs(x-med)).sort()[v.length>>1]*1.4826+1e-6;
+        const th=med+(5-(+threshOffset.value)/20)*mad;
+        const m2=new Uint8Array(N); for(const p of idx) if(!big[p] && colf[p]>th) m2[p]=1;
+        const cc=connectedComponents(m2,w,h);
+        shapeAndColourStats(cc.labels, cc.comps, w, h, anaChroma);
+        const minS=Math.max(4,+minArea.value,Math.round(0.04*typ));        // well above agar texture
+        for(const c of cc.comps){
+          if(c.area<minS || c.area>typ || c.fillRatio<0.45) continue;
+          if(effR-Math.hypot(c.cx-dish.cx,c.cy-dish.cy)<edgeBand*0.5) continue;  // rim glare
+          kept.push({area:c.area, cx:c.cx, cy:c.cy, r:Math.max(3,Math.sqrt(c.area/Math.PI))});
+        }
+      }
+    }
+    render(rimGlareFilter(kept,dish,effR),dish,effR,topCutY);
+  }
+
+  // Edge reflections: the dish wall reflects the lamp as bright, colourless specks and arcs
+  // near the rim. Within a ring just inside the dish edge, drop detections that look like that:
+  // clearly brighter than the agar and without colour. The slider widens the ring and makes the
+  // test stricter. Colonies further in are never touched.
+  function rimGlareFilter(cols, dish, effR){
+    const lvl=(+rimGlare.value)/100; if(lvl<=0 || !rgbRaw) return cols;
+    const band=0.04+0.16*lvl, inner=effR*(1-band);
+    // typical agar brightness, sampled across the counted area
+    const Ls=[]; const step=Math.max(2,Math.round(effR/60));
+    for(let y=Math.round(dish.cy-effR); y<dish.cy+effR; y+=step) for(let x=Math.round(dish.cx-effR); x<dish.cx+effR; x+=step){
+      if(x<0||y<0||x>=baseW||y>=baseH) continue; const dx=x-dish.cx, dy=y-dish.cy; if(dx*dx+dy*dy>effR*effR) continue;
+      const i=(y*baseW+x)*4; Ls.push((rgbRaw[i]+rgbRaw[i+1]+rgbRaw[i+2])/3); }
+    Ls.sort((a,b)=>a-b); const agarL=Ls.length?Ls[Ls.length>>1]:128;
+    const brighter=45-35*lvl, maxSat=0.16+0.22*lvl;
+    return cols.filter(c=>{
+      if(Math.hypot(c.cx-dish.cx,c.cy-dish.cy) < inner) return true;
+      const x=Math.round(c.cx), y=Math.round(c.cy); if(x<1||y<1||x>=baseW-1||y>=baseH-1) return true;
+      let r=0,g=0,b=0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const i=((y+dy)*baseW+x+dx)*4; r+=rgbRaw[i]; g+=rgbRaw[i+1]; b+=rgbRaw[i+2]; }
+      r/=9; g/=9; b/=9; const mx=Math.max(r,g,b), mn=Math.min(r,g,b), L=(r+g+b)/3, sat=(mx-mn)/(mx+1);
+      const glare = L >= agarL+brighter && sat <= maxSat;
+      return !glare;
+    });
   }
 
   function render(colonies,dish,effR,topCutY){
-    drawBase(dish,effR,topCutY);
-    ctx.strokeStyle='#2F6F62'; ctx.lineWidth=1.6;
-    colonies.forEach(c=>{ ctx.beginPath(); ctx.arc(c.cx,c.cy,c.r+2,0,Math.PI*2); ctx.stroke(); });
+    autoCols=colonies; lastGeom={dish,effR,topCutY};
+    drawAll();
+  }
+
+  function drawAll(){
+    if(!lastGeom) return;
+    const {dish,effR,topCutY}=lastGeom;
+    drawBase(dish,effR,topCutY); shadeWriting();
+    const colonies=autoCols, lw=Math.max(1.4, baseW/700);
+    for(const [col,wd] of [['rgba(40,26,18,0.85)',lw*2.4],['#FFF1DC',lw]]){
+      ctx.strokeStyle=col; ctx.lineWidth=wd;
+      for(const c of colonies){ ctx.beginPath(); ctx.arc(c.cx,c.cy,c.r+2,0,Math.PI*2); ctx.stroke(); }
+    }
+    drawFlash(lw);
 
     document.getElementById('countStat').textContent=colonies.length;
     if(colonies.length>0){
-      const areas=colonies.map(c=>c.area);
+      const areas=colonies.map(c=>Math.round(c.area));
       const avg=areas.reduce((a,b)=>a+b,0)/areas.length;
       document.getElementById('avgStat').textContent=avg.toFixed(1);
       document.getElementById('rangeStat').textContent=Math.min(...areas)+' – '+Math.max(...areas);
@@ -650,7 +1133,164 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
       document.getElementById('rangeStat').textContent='–';
     }
     results.style.display='grid';
+    uiAfterDraw();
   }
+
+  // ================= Auto-setup =================
+  // After a photo loads, look at what's on the plate and choose the settings for it.
+  // Each chosen setting gets an "auto" tag; changing it by hand removes the tag.
+  const autoStatus=document.getElementById('autoStatus'), autoBox=document.getElementById('autoBox'),
+        autoList=document.getElementById('autoList'), rerunAuto=document.getElementById('rerunAuto');
+  function setTag(key,on){ const el=document.getElementById('tag-'+key); if(el) el.textContent=on?'auto':''; }
+  const tick=()=>new Promise(r=>setTimeout(r,20));
+  function medianR(cols){ const rs=cols.map(c=>c.r).sort((a,b)=>a-b); return rs.length?rs[rs.length>>1]:0; }
+  function snap(){ return {cols:autoCols.map(c=>Object.assign({},c)), n:autoCols.length, medR:medianR(autoCols), effR:lastGeom?lastGeom.effR:0}; }
+
+  // Marker ink: saturated blue, or near-black, drawn as long thin strokes (colonies are round
+  // blobs). Returns a mask of the strokes plus a small margin, anywhere on the dish.
+  function detectWriting(dish){
+    const R=dish.radius, w=baseW, h=baseH, N=w*h, ink=new Uint8Array(N);
+    const x0=Math.max(1,Math.floor(dish.cx-R)), x1=Math.min(w-1,Math.ceil(dish.cx+R));
+    const y0=Math.max(1,Math.floor(dish.cy-R)), y1=Math.min(h-1,Math.ceil(dish.cy+R));
+    for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){
+      const dx=x-dish.cx, dy=y-dish.cy; if(dx*dx+dy*dy>R*R) continue;
+      const i=(y*w+x)*4, r=rgbRaw[i], g=rgbRaw[i+1], b=rgbRaw[i+2];
+      const mx=Math.max(r,g,b), mn=Math.min(r,g,b), sat=(mx-mn)/(mx+1), L=(r+g+b)/3;
+      if((b>r+35 && b>g+15 && sat>0.3 && L<175) || (mx<70 && sat<0.4)) ink[y*w+x]=1;
+    }
+    const dil=(m,k)=>{ for(let t=0;t<k;t++){ const nx=new Uint8Array(N);
+      for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){ const i=y*w+x; if(m[i]||m[i-1]||m[i+1]||m[i-w]||m[i+w]) nx[i]=1; } m=nx; } return m; };
+    const joined=dil(ink, Math.max(1,Math.round(R/180)));        // join the pieces of each stroke
+    const {comps,labels}=connectedComponents(joined,w,h);
+    const keep=new Uint8Array(comps.length); let marks=0;
+    comps.forEach((c,id)=>{
+      const extent=Math.hypot(c.mxx-c.mnx, c.mxy-c.mny);
+      const fill=c.area/((c.mxx-c.mnx+1)*(c.mxy-c.mny+1));
+      if(extent>=0.10*R && c.area>=0.0004*Math.PI*R*R && fill<=0.72){ keep[id]=1; marks++; }   // a round colony fills ~0.78
+    });
+    let mask=new Uint8Array(N);
+    for(let p=0;p<N;p++){ const lb=labels[p]; if(lb>=0 && keep[lb]) mask[p]=1; }
+    mask=dil(mask, Math.max(2,Math.round(R/70)));                  // margin around the ink
+    return {mask, marks};
+  }
+  function writingMask(){
+    if(!inkOn || !rgbRaw) return null;
+    const {dish}=geometry();
+    const key=[baseW,baseH,Math.round(dish.cx),Math.round(dish.cy),Math.round(dish.radius)].join(',');
+    if(key!==inkKey){ const r=detectWriting(dish); inkMask=r.mask; inkMarks=r.marks; inkKey=key; }
+    return inkMask;
+  }
+
+  // Average colour at the colonies' centres (to spot white or cream colonies).
+  function colonyWhiteness(cols){
+    let mn=0, sat=0, n=0;
+    for(const c of cols){ const x=Math.round(c.cx), y=Math.round(c.cy); if(x<1||y<1||x>=baseW-1||y>=baseH-1) continue;
+      let r=0,g=0,b=0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const i=((y+dy)*baseW+x+dx)*4; r+=rgbRaw[i]; g+=rgbRaw[i+1]; b+=rgbRaw[i+2]; }
+      r/=9; g/=9; b/=9; const mx=Math.max(r,g,b), m=Math.min(r,g,b); mn+=m; sat+=(mx-m)/(mx+1); n++; }
+    return n ? {min:mn/n, sat:sat/n} : {min:0, sat:1};
+  }
+
+  // Do the small detections sit one per big shape (dimples inside big colonies)?
+  function bigColonyEvidence(S,L){
+    if(!S.n || L.n<5) return {ratio:0, perShape:99};
+    const inside=new Array(L.n).fill(0);
+    for(const c of S.cols){ let best=-1, bd=Infinity;
+      L.cols.forEach((q,i)=>{ const d=Math.hypot(c.cx-q.cx,c.cy-q.cy); if(d<=q.r && d<bd){ bd=d; best=i; } });
+      if(best>=0) inside[best]++; }
+    const occ=inside.filter(k=>k>0);
+    return {ratio: S.medR ? L.medR/S.medR : 0, perShape: occ.length ? occ.reduce((a,b)=>a+b,0)/occ.length : 99};
+  }
+
+  function setDetail(v){
+    detailBtns.forEach(x=>x.classList.toggle('active', +x.dataset.detail===v));
+    if(detailDim!==v){ const oldW=baseW; detailDim=v; prepare(oldW, true); }
+  }
+
+  let autoRunId=0;
+  async function autoSetup(){
+    if(!srcImg) return;
+    const run=++autoRunId;
+    clearTimeout(recTimer);
+    autoBox.hidden=true; autoStatus.textContent='Setting up for this plate…';
+    await tick(); if(run!==autoRunId) return;
+    const notes=[];
+
+    // start from the standard settings
+    splitBias=0; rimGlare.value=0;
+    mode='auto'; modeBtns.forEach(x=>x.classList.toggle('active', x.dataset.mode==='auto'));
+    applySize('small');
+    threshOffset.value=0; fillMin.value=25; chromaMin.value=0; minArea.value=8; maxArea.value=5;
+    if(!shineOn){ shineOn=true; shineBtns.forEach(x=>x.classList.toggle('active', x.dataset.shine==='on')); buildCaches(); }
+    setDetail(1100);
+
+    // 1. handwriting anywhere on the dish
+    inkOn=true; inkBtns.forEach(x=>x.classList.toggle('active', x.dataset.ink==='on')); inkKey='';
+    topCrop.value=0; syncLabels(); recomputeColonies();
+    const {effR}=geometry();
+    notes.push(inkMarks ? `Writing found on the plate (${inkMarks===1?'1 mark':inkMarks+' marks'}), and those spots are left out of the count.`
+                        : 'No writing found on the plate, so the whole dish is counted.');
+    syncLabels(); recomputeColonies();
+    let S=snap();
+    autoStatus.textContent='Checking for glare…'; await tick(); if(run!==autoRunId) return;
+
+    // 2. glare vs white colonies
+    // Glare removal only changes the count when colonies are found by being lighter than the agar;
+    // that's also exactly when tiny white colonies and glare can be confused. So in that case,
+    // count again with glare removal off: if that adds a real number of round white dots, they are
+    // colonies, and glare removal stays off.
+    const dishA=Math.PI*effR*effR;
+    if(shinePixels && (lastUse==='light' || shinePixels > 0.015*dishA)){
+      const saved={LSm,NR,NG,NB,anaChroma,shinePixels};
+      shineOn=false; buildCaches(); recomputeColonies();
+      const Soff=snap();
+      const gained=Soff.cols.filter(c=>!S.cols.some(d=>Math.hypot(c.cx-d.cx,c.cy-d.cy)<=Math.max(c.r,d.r)+2));
+      const wh=colonyWhiteness(gained);
+      if(gained.length >= Math.max(10, 0.05*S.n) && wh.min>=140 && wh.sat<=0.3){
+        S=Soff; notes.push(`White colonies found (${gained.length} would have been taken for glare), so Ignore shine is off.`);
+      } else {
+        ({LSm,NR,NG,NB,anaChroma,shinePixels}=saved); shineOn=true; recomputeColonies(); S=snap();
+        notes.push('Glare found on the plate, so Ignore shine is on.');
+      }
+    } else notes.push(shinePixels ? 'Glare found, but it doesn\'t affect the count on this plate; Ignore shine is on.' : 'No glare found.');
+    shineBtns.forEach(x=>x.classList.toggle('active', (x.dataset.shine==='on')===shineOn)); updateShineNote();
+    autoStatus.textContent='Checking colony size…'; await tick(); if(run!==autoRunId) return;
+
+    // 3. small/scattered vs large/touching
+    let useLarge=false;
+    if(S.n<=300){                      // hundreds of colonies can't be big ones
+      applySize('large'); recomputeColonies();
+      const L=snap(), ev=bigColonyEvidence(S,L);
+      useLarge = ev.ratio>=3 && ev.perShape<=1.7;
+    }
+    if(useLarge) notes.push('Big colonies, so Large / touching mode is used.');
+    else { applySize('small'); autoCols=S.cols; notes.push('Small to medium colonies, so Small / scattered mode is used.'); }
+
+    // 4. analysis detail from the typical colony size
+    let medR=medianR(autoCols);
+    if(medR>0 && medR<3.5){ setDetail(1600); recomputeColonies(); notes.push('Very small colonies, so analysis detail is set to Max.'); }
+    else if(medR>14){ setDetail(700); recomputeColonies(); notes.push('Big colonies, so analysis detail is set to Standard (faster).'); }
+    else notes.push('Analysis detail is set to High.');
+    autoStatus.textContent='Finishing…'; await tick(); if(run!==autoRunId) return;
+
+    // 5. min / max colony size from the typical colony on this plate
+    medR=medianR(autoCols);
+    const g2=geometry(), dishA2=Math.PI*g2.effR*g2.effR, medA=Math.PI*medR*medR;
+    if(medR>0 && sizeMode==='small'){
+      minArea.value=Math.max(3,Math.min(60,Math.round(0.1*medA)));
+      maxArea.value=Math.max(5,Math.min(30,Math.round(1000*Math.min(0.03,Math.max(0.005,6*medA/dishA2)))));
+      notes.push(`Specks smaller than ${minArea.value} px are ignored (a tenth of a typical colony here).`);
+    } else if(sizeMode==='large'){
+      minArea.value=8;
+      notes.push('Small colonies between the big ones are counted too.');
+    }
+    syncLabels(); recomputeColonies();
+
+    ['ink','top','shine','size','detail','min'].forEach(k=>setTag(k,true)); setTag('max', sizeMode==='small');
+    autoList.innerHTML=''; for(const t of notes){ const li=document.createElement('li'); li.textContent=t; autoList.appendChild(li); }
+    autoStatus.textContent=''; autoBox.hidden=false;
+    uiAfterAuto();
+  }
+  rerunAuto.addEventListener('click', ()=>autoSetup());
 
   function canvasPt(e){ const r=canvas.getBoundingClientRect(); const k=baseW/r.width;
     return {x:(e.clientX-r.left)*k, y:(e.clientY-r.top)*(baseH/r.height), k}; }
@@ -658,28 +1298,7 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
     const {dish,effR}=geometry(), p=canvasPt(e), d=Math.hypot(p.x-dish.cx,p.y-dish.cy), tol=Math.max(10,14*p.k);
     return {p, type: Math.abs(d-effR)<=tol ? 'resize' : (d<effR ? 'move' : 'none')};
   }
-  canvas.addEventListener('pointerdown', e=>{
-    if(!srcImg) return; const h=hitTest(e); if(h.type==='none') return;
-    canvas.setPointerCapture(e.pointerId);
-    const g=geometry(); manualDish={cx:g.dish.cx, cy:g.dish.cy, radius:g.dish.radius};
-    drag={type:h.type, sx:h.p.x, sy:h.p.y, ox:manualDish.cx, oy:manualDish.cy}; setDishMode();
-  });
-  canvas.addEventListener('pointermove', e=>{
-    if(!srcImg) return;
-    if(!drag){ const h=hitTest(e); canvas.style.cursor=h.type==='resize'?'nwse-resize':h.type==='move'?'move':'default'; return; }
-    const p=canvasPt(e);
-    if(drag.type==='move'){ manualDish.cx=drag.ox+(p.x-drag.sx); manualDish.cy=drag.oy+(p.y-drag.sy); }
-    else manualDish.radius=Math.max(20, Math.hypot(p.x-manualDish.cx,p.y-manualDish.cy)/(1-(+edgeCrop.value)/100));
-    drawBaseNow();
-  });
-  const endDrag=()=>{ if(drag){ drag=null; scheduleRecompute(0); } };
-  canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
-  canvas.addEventListener('wheel', e=>{
-    if(!srcImg || hitTest(e).type==='none') return;
-    e.preventDefault();
-    const g=geometry(); manualDish={cx:g.dish.cx, cy:g.dish.cy, radius:g.dish.radius*(e.deltaY<0?1.02:0.98)};
-    setDishMode(); drawBaseNow(); scheduleRecompute(250);
-  }, {passive:false});
+  // circle dragging, zoom and pan are handled together in the interface code below
 
   downloadBtn.addEventListener('click', async ()=>{
     canvas.toBlob(async (blob)=>{
@@ -697,12 +1316,333 @@ footer.note{margin-top:26px; font-size:12px; opacity:0.45; line-height:1.6; max-
   });
 
   resetBtn.addEventListener('click', ()=>{
-    srcImg=null; grayCache=null; chromaCache=null; currentDish=null; manualDish=null; setDishMode();
+    srcImg=null; grayCache=null; chromaCache=null; currentDish=null; manualDish=null; autoCols=[]; lastGeom=null; setDishMode(); autoRunId++; autoBox.hidden=true; autoStatus.textContent=''; ['ink','top','shine','size','detail','min','max'].forEach(k=>setTag(k,false));
     canvas.style.display='none'; placeholder.style.display='block';
     results.style.display='none'; dishMsg.style.display='none';
     downloadBtn.disabled=true; resetBtn.disabled=true; fileInput.value='';
+    showHome();
   });
+  // ================= Interface: screens, sheet, quick fixes, CFU =================
+  const homeEl=document.getElementById('drop'), workEl=document.getElementById('work');
+  const countWord=document.getElementById('countWord'), deltaChip=document.getElementById('deltaChip'), undoBtn=document.getElementById('undoBtn');
+  const feedback=document.getElementById('feedback'), fbMsg=document.getElementById('fbMsg'), fbSub=document.getElementById('fbSub'),
+        fbAgain=document.getElementById('fbAgain'), fbLegend=document.getElementById('fbLegend');
+  const fixBtns=document.querySelectorAll('[data-fix]');
+
+  function showWork(){ homeEl.hidden=true; workEl.hidden=false; resetFixes(); openTab('fix'); setFixesEnabled(false); resetView(); setDishEdit(false); }
+  function showHome(){ workEl.hidden=true; homeEl.hidden=false; resetFixes(); resetView(); setDishEdit(false); }
+
+  // camera button (same pipeline as choosing a photo)
+  const camFile=document.getElementById('camFile');
+  camFile.addEventListener('change', e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); camFile.value=''; });
+
+  // ---------- sheet and tabs ----------
+  const tabBtns=document.querySelectorAll('[data-tab]'), panes=document.querySelectorAll('[data-pane]'),
+        sheet=document.getElementById('sheet'), sheetToggle=document.getElementById('sheetToggle');
+  function setSheet(open){
+    sheet.classList.toggle('collapsed',!open);
+    sheetToggle.setAttribute('aria-expanded',open); sheetToggle.setAttribute('aria-label',open?'Hide options':'Show options');
+  }
+  function openTab(t){
+    tabBtns.forEach(b=>{ const on=b.dataset.tab===t; b.classList.toggle('active',on); b.setAttribute('aria-selected',on); });
+    panes.forEach(p=>{ p.hidden=p.dataset.pane!==t; });
+    setSheet(true);
+    const active=[...tabBtns].find(b=>b.dataset.tab===t); if(active) active.scrollIntoView({block:'nearest',inline:'nearest'});
+  }
+  tabBtns.forEach(b=>b.addEventListener('click', ()=>{
+    // tapping the open tab again slides the sheet down to show more plate
+    if(b.classList.contains('active') && !sheet.classList.contains('collapsed') && window.innerWidth<900) setSheet(false);
+    else openTab(b.dataset.tab);
+  }));
+  // handle: tap to toggle, or swipe down / up
+  let swipeY=null, swiped=false;
+  sheetToggle.addEventListener('pointerdown', e=>{ swipeY=e.clientY; swiped=false; });
+  window.addEventListener('pointerup', e=>{
+    if(swipeY===null) return;
+    const dy=e.clientY-swipeY; swipeY=null;
+    if(Math.abs(dy)>24){ swiped=true; setSheet(dy<0); }
+  });
+  sheetToggle.addEventListener('click', ()=>{ if(swiped){ swiped=false; return; } setSheet(sheet.classList.contains('collapsed')); });
+
+  // ---------- live highlight of what a change added or took away ----------
+  let flash=null, flashTimer=null;
+  function drawFlash(lw){
+    if(!flash) return;
+    ctx.lineWidth=lw*2.4; ctx.strokeStyle='#F0A640';
+    for(const c of flash.added){ ctx.beginPath(); ctx.arc(c.cx,c.cy,c.r+5,0,Math.PI*2); ctx.stroke(); }
+    for(const c of flash.removed){
+      const a=Math.max(4,c.r*0.85);
+      for(const [col,wd] of [['#FFF1DC',lw*3.4],['#B3412B',lw*1.8]]){
+        ctx.strokeStyle=col; ctx.lineWidth=wd; ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(c.cx-a,c.cy-a); ctx.lineTo(c.cx+a,c.cy+a); ctx.moveTo(c.cx+a,c.cy-a); ctx.lineTo(c.cx-a,c.cy+a); ctx.stroke();
+      }
+    }
+    ctx.lineCap='butt';
+  }
+  function startFlash(added,removed){
+    clearTimeout(flashTimer);
+    flash={added,removed}; drawAll();
+    flashTimer=setTimeout(()=>{ flash=null; drawAll(); }, 2800);
+  }
+  function diffCols(before,after){
+    const near=(a,list)=>list.some(b=>Math.hypot(a.cx-b.cx,a.cy-b.cy)<=Math.max(a.r,b.r)+2);
+    return {added:after.filter(c=>!near(c,before)), removed:before.filter(c=>!near(c,after))};
+  }
+
+  // ---------- settings as one snapshot (for fixes and undo) ----------
+  function getState(){
+    return {thresh:+threshOffset.value, min:+minArea.value, max:+maxArea.value, fill:+fillMin.value, chroma:+chromaMin.value,
+      edge:+edgeCrop.value, top:+topCrop.value, dishSense:+dishSense.value, mode, sizeMode, touchMode, shineOn, inkOn,
+      detail:detailDim, splitBias, rim:+rimGlare.value, manualDish:manualDish?Object.assign({},manualDish):null, baseW};
+  }
+  function applyState(s){
+    threshOffset.value=s.thresh; minArea.value=s.min; maxArea.value=s.max; fillMin.value=s.fill; chromaMin.value=s.chroma;
+    edgeCrop.value=s.edge; topCrop.value=s.top; dishSense.value=s.dishSense; rimGlare.value=s.rim;
+    mode=s.mode; modeBtns.forEach(x=>x.classList.toggle('active', x.dataset.mode===mode));
+    applySize(s.sizeMode);
+    touchMode=s.touchMode; touchBtns.forEach(x=>x.classList.toggle('active', x.dataset.touch===touchMode));
+    if(inkOn!==s.inkOn){ inkOn=s.inkOn; inkKey=''; } inkBtns.forEach(x=>x.classList.toggle('active', (x.dataset.ink==='on')===inkOn));
+    splitBias=s.splitBias;
+    const shineChanged=shineOn!==s.shineOn; shineOn=s.shineOn; shineBtns.forEach(x=>x.classList.toggle('active', (x.dataset.shine==='on')===shineOn));
+    manualDish = s.manualDish ? (k=>({cx:s.manualDish.cx*k, cy:s.manualDish.cy*k, radius:s.manualDish.radius*k}))(baseW/s.baseW) : null;
+    syncLabels();
+    if(s.detail!==detailDim){
+      detailBtns.forEach(x=>x.classList.toggle('active', +x.dataset.detail===s.detail));
+      const oldW=baseW; detailDim=s.detail; prepare(oldW, true);
+    } else if(shineChanged){ buildCaches(); updateShineNote(); }
+    setDishMode(); recomputeColonies();
+  }
+  const TAG_OF={min:'min', max:'max', detail:'detail', shineOn:'shine', sizeMode:'size', top:'top', inkOn:'ink'};
+
+  // ---------- quick fixes: each tap applies the next step ----------
+  const FIX={
+    missing:[
+      s=>{ s.thresh=Math.min(60,s.thresh+15); s.min=Math.max(2,Math.round(s.min*0.6)); },
+      s=>{ s.thresh=Math.min(60,s.thresh+15); if(s.detail<1600) s.detail=s.detail<1100?1100:1600; if(lastUse==='light' && s.shineOn) s.shineOn=false; },
+      s=>{ s.thresh=Math.min(60,s.thresh+15); s.min=Math.max(1,Math.round(s.min*0.6)); s.fill=Math.max(0,s.fill-10); }
+    ],
+    extra:[
+      s=>{ s.thresh=Math.max(-60,s.thresh-15); s.min=Math.min(60,Math.round(s.min*1.5)+1); },
+      s=>{ s.thresh=Math.max(-60,s.thresh-15); s.fill=Math.min(70,s.fill+15); s.rim=Math.min(100,s.rim+35); },
+      s=>{ s.thresh=Math.max(-60,s.thresh-15); s.min=Math.min(60,Math.round(s.min*1.5)+1); if(lastUse==='colour') s.chroma=Math.min(120,s.chroma+15); }
+    ],
+    merged:[
+      s=>{ if(s.touchMode!=='separate') s.touchMode='separate'; else s.splitBias=Math.max(s.splitBias,1); },
+      s=>{ s.touchMode='separate'; s.splitBias=Math.max(s.splitBias+1,2); }
+    ],
+    split:[
+      s=>{ s.splitBias=Math.min(s.splitBias,0)-1; },
+      s=>{ s.touchMode='one'; }
+    ]
+  };
+  let fixLevel={}, undoStack=[], lastFix=null;
+  function resetFixes(){
+    fixLevel={}; undoStack=[]; lastFix=null; feedback.hidden=true; deltaChip.hidden=true; undoBtn.hidden=true;
+    clearTimeout(flashTimer); flash=null;
+  }
+  function setFixesEnabled(on){ fixBtns.forEach(b=>b.disabled=!on); }
+  function plural(n){ return n===1?'colony':'colonies'; }
+
+  function applyFix(key){
+    if(!srcImg || !lastGeom) return;
+    if(key==='dish') return fixDish();
+    const steps=FIX[key], lvl=fixLevel[key]||0;
+    if(lvl>=steps.length){
+      showFeedback('That\'s as far as the automatic fix goes.', 'Fine-tune it yourself in the Sensitivity tab.', false, false);
+      return;
+    }
+    const before=autoCols.slice(), prev=getState(), next=getState();
+    steps[lvl](next);
+    undoStack.push({state:prev, key, lvl}); fixLevel[key]=lvl+1; lastFix=key;
+    for(const k in TAG_OF) if(prev[k]!==next[k]) setTag(TAG_OF[k],false);
+    applyState(next);
+    reportChange(before, lvl+1<steps.length);
+  }
+  function fixDish(){
+    const before=autoCols.slice();
+    undoStack.push({state:getState(), key:'dish', lvl:0}); lastFix='dish';
+    manualDish=null; setDishMode(); redetectDish();
+    const d=diffCols(before,autoCols); startFlash(d.added,d.removed); updateChangeUI(before.length);
+    showFeedback('The dish circle was found again.', 'Still off? Move circle is on: drag the circle to fit the plate, or drag its edge to resize it. Tap Done when it fits.', true, false);
+    setDishEdit(true);
+  }
+  function reportChange(before, canGoFurther){
+    const d=diffCols(before,autoCols), net=autoCols.length-before.length;
+    startFlash(d.added,d.removed);
+    let msg;
+    if(net>0) msg=`${net} more ${plural(net)} counted.`;
+    else if(net<0) msg=`${-net} fewer counted.`;
+    else msg = (d.added.length||d.removed.length) ? 'Same total; a few circles moved.' : 'No change on this plate.';
+    showFeedback(msg, canGoFurther ? 'Still not right? Tap Go further.' : 'That was the last automatic step. Fine-tune in the other tabs if needed.', true, canGoFurther, d.added.length||d.removed.length);
+    updateChangeUI(before.length);
+  }
+  function showFeedback(msg, sub, canUndo, canAgain, showLegend){
+    fbMsg.textContent=msg; fbSub.textContent=sub;
+    fbAgain.hidden=!canAgain; fbLegend.hidden=!showLegend;
+    feedback.hidden=false;
+  }
+  function updateChangeUI(prevCount){
+    undoBtn.hidden=!undoStack.length;
+    if(prevCount!==undefined && prevCount!==autoCols.length){ deltaChip.textContent=`${prevCount} → ${autoCols.length}`; deltaChip.hidden=false; }
+    else if(prevCount!==undefined) deltaChip.hidden=true;
+  }
+  function undo(){
+    const u=undoStack.pop(); if(!u) return;
+    const before=autoCols.slice();
+    applyState(u.state); fixLevel[u.key]=u.lvl; lastFix=undoStack.length?undoStack[undoStack.length-1].key:null;
+    const d=diffCols(before,autoCols); startFlash(d.added,d.removed);
+    updateChangeUI(before.length);
+    showFeedback('Undone.', `Back to ${autoCols.length} ${plural(autoCols.length)}.`, true, false, false);
+  }
+  fixBtns.forEach(b=>b.addEventListener('click', ()=>applyFix(b.dataset.fix)));
+  fbAgain.addEventListener('click', ()=>{ if(lastFix) applyFix(lastFix); });
+  undoBtn.addEventListener('click', undo);
+
+  // ---------- CFU per mL ----------
+  const cfuDil=document.getElementById('cfuDil'), cfuVol=document.getElementById('cfuVol'), cfuOut=document.getElementById('cfuOut'),
+        cfuHow=document.getElementById('cfuHow'), cfuWarn=document.getElementById('cfuWarn');
+  const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','.':'·'};
+  const sup=n=>String(n).split('').map(ch=>SUP[ch]||ch).join('');
+  function sci(x){ if(!isFinite(x)||x<=0) return '0'; const e=Math.floor(Math.log10(x)); let m=x/Math.pow(10,e);
+    if(m>=9.995){ m=1; return `1.00 × 10${sup(e+1)}`; } return `${m.toFixed(2)} × 10${sup(e)}`; }
+  function updateCFU(){
+    const n=autoCols.length, d=+cfuDil.value, v=parseFloat(cfuVol.value);
+    if(!(v>0)){ cfuOut.textContent='–'; cfuHow.textContent='Enter the volume you spread on the plate.'; cfuWarn.hidden=true; return; }
+    cfuOut.textContent=`${sci(n/(v*Math.pow(10,d)))} CFU/mL`;
+    cfuHow.textContent=`${n} ${plural(n)} ÷ (${v} mL × 10${sup(d)})`;
+    cfuWarn.hidden = n>=30 && n<=300;
+  }
+  cfuDil.addEventListener('change', updateCFU); cfuVol.addEventListener('input', updateCFU);
+
+  // ---------- hold the eye to see the original photo ----------
+  const peekBtn=document.getElementById('peekBtn'), peekLabel=document.getElementById('peekLabel');
+  let peeking=false;
+  function peek(on){
+    if(!srcImg || !lastGeom || on===peeking) return;
+    peeking=on; peekBtn.classList.toggle('on',on); peekLabel.hidden=!on;
+    if(on){ ctx.clearRect(0,0,baseW,baseH); ctx.drawImage(srcImg,0,0,baseW,baseH); }
+    else drawAll();
+  }
+  peekBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); try{ peekBtn.setPointerCapture(e.pointerId); }catch(_){} peek(true); });
+  ['pointerup','pointercancel','lostpointercapture'].forEach(t=>peekBtn.addEventListener(t, ()=>peek(false)));
+  peekBtn.addEventListener('contextmenu', e=>e.preventDefault());
+  peekBtn.addEventListener('keydown', e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); peek(true); } });
+  peekBtn.addEventListener('keyup', e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); peek(false); } });
+  peekBtn.addEventListener('blur', ()=>peek(false));
+
+  // ---------- hooks called by the engine ----------
+  function uiAfterDraw(){ if(peeking){ ctx.clearRect(0,0,baseW,baseH); ctx.drawImage(srcImg,0,0,baseW,baseH); } countWord.textContent=plural(autoCols.length); updateCFU(); }
+  function uiAfterAuto(){ resetFixes(); setFixesEnabled(true); if(dishMsg.style.display==='block') setDishEdit(true); }
+
+  // ---------- zoom, pan and the locked dish circle ----------
+  const stageEl=document.getElementById('stage'), zoomIn=document.getElementById('zoomIn'), zoomOut=document.getElementById('zoomOut'),
+        editCircleBtn=document.getElementById('editCircleBtn'), dishEditBtn=document.getElementById('dishEditBtn'),
+        editBar=document.getElementById('editBar'), editDone=document.getElementById('editDone');
+  const MAXZ=6; let view={s:1,tx:0,ty:0}, dishEdit=false;
+  function clampView(){
+    const w=canvas.offsetWidth, h=canvas.offsetHeight;
+    view.s=Math.min(MAXZ,Math.max(1,view.s));
+    view.tx=Math.min(0,Math.max(w*(1-view.s),view.tx)); view.ty=Math.min(0,Math.max(h*(1-view.s),view.ty));
+  }
+  function applyView(){
+    clampView();
+    canvas.style.transform = view.s===1 ? '' : `translate(${view.tx}px,${view.ty}px) scale(${view.s})`;
+    zoomOut.disabled = view.s<=1.001; zoomIn.disabled = view.s>=MAXZ-0.001;
+    updateCursor();
+  }
+  // screen position of the canvas's untransformed top-left corner
+  function layoutOrigin(){ const r=stageEl.getBoundingClientRect(); return {x:r.left+stageEl.clientLeft+canvas.offsetLeft, y:r.top+stageEl.clientTop+canvas.offsetTop}; }
+  function zoomAt(cx,cy,newS){
+    const o=layoutOrigin(), fx=cx-o.x, fy=cy-o.y;
+    newS=Math.min(MAXZ,Math.max(1,newS));
+    const px=(fx-view.tx)/view.s, py=(fy-view.ty)/view.s;   // canvas point under the focus
+    view.tx=fx-px*newS; view.ty=fy-py*newS; view.s=newS; applyView();
+  }
+  function zoomCenter(f){ const r=stageEl.getBoundingClientRect(); zoomAt(r.left+r.width/2, r.top+r.height/2, view.s*f); }
+  function resetView(){ view={s:1,tx:0,ty:0}; applyView(); }
+  zoomIn.addEventListener('click', ()=>zoomCenter(1.6));
+  zoomOut.addEventListener('click', ()=>zoomCenter(1/1.6));
+  window.addEventListener('resize', ()=>applyView());
+
+  function setDishEdit(on){
+    dishEdit=on;
+    editCircleBtn.setAttribute('aria-pressed',on); dishEditBtn.setAttribute('aria-pressed',on);
+    dishEditBtn.textContent = on ? 'Done moving the circle' : 'Move the circle';
+    editBar.hidden=!on; canvas.classList.toggle('edit',on); updateCursor();
+  }
+  editCircleBtn.addEventListener('click', ()=>setDishEdit(!dishEdit));
+  dishEditBtn.addEventListener('click', ()=>setDishEdit(!dishEdit));
+  editDone.addEventListener('click', ()=>setDishEdit(false));
+
+  function updateCursor(){ if(!dishEdit) canvas.style.cursor = view.s>1 ? 'grab' : 'zoom-in'; }
+
+  const pointers=new Map(); let touchZoomT=-1e9, pinch=null, pan=null, savedDish=undefined, lastTap=null, circleMoved=false;
+  function startCircleDrag(e,h){
+    const g=geometry();
+    savedDish = manualDish ? Object.assign({},manualDish) : null;
+    manualDish={cx:g.dish.cx, cy:g.dish.cy, radius:g.dish.radius};
+    drag={type:h.type, sx:h.p.x, sy:h.p.y, ox:g.dish.cx, oy:g.dish.cy}; circleMoved=false;
+  }
+  function beginPinch(){
+    if(drag){ manualDish=savedDish; drag=null; setDishMode(); drawAll(); }
+    pan=null;
+    const [a,b]=[...pointers.values()];
+    pinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1, mx:(a.x+b.x)/2, my:(a.y+b.y)/2, s:view.s};
+  }
+  canvas.addEventListener('pointerdown', e=>{
+    if(!srcImg) return;
+    try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===2){ beginPinch(); return; }
+    if(pointers.size>2) return;
+    if(dishEdit){ const h=hitTest(e); if(h.type!=='none'){ startCircleDrag(e,h); return; } }
+    pan={x:e.clientX, y:e.clientY, tx:view.tx, ty:view.ty, moved:false};
+    if(view.s>1) canvas.style.cursor='grabbing';
+  });
+  canvas.addEventListener('pointermove', e=>{
+    if(!pointers.has(e.pointerId)){
+      if(dishEdit && srcImg && !drag){ const h=hitTest(e); canvas.style.cursor = h.type==='resize' ? 'nwse-resize' : h.type==='move' ? 'move' : (view.s>1?'grab':'default'); }
+      return;
+    }
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pinch && pointers.size>=2){
+      const [a,b]=[...pointers.values()], d=Math.hypot(a.x-b.x,a.y-b.y)||1, mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+      view.tx+=mx-pinch.mx; view.ty+=my-pinch.my; pinch.mx=mx; pinch.my=my;
+      zoomAt(mx,my,pinch.s*d/pinch.d);
+      return;
+    }
+    if(drag){
+      const p=canvasPt(e);
+      if(drag.type==='move'){ manualDish.cx=drag.ox+(p.x-drag.sx); manualDish.cy=drag.oy+(p.y-drag.sy); }
+      else manualDish.radius=Math.max(20, Math.hypot(p.x-manualDish.cx,p.y-manualDish.cy)/(1-(+edgeCrop.value)/100));
+      circleMoved=true; setDishMode(); drawBaseNow(); return;
+    }
+    if(pan){
+      const dx=e.clientX-pan.x, dy=e.clientY-pan.y;
+      if(Math.hypot(dx,dy)>4) pan.moved=true;
+      if(view.s>1){ view.tx=pan.tx+dx; view.ty=pan.ty+dy; applyView(); }
+    }
+  });
+  function endPointer(e){
+    if(!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    if(pinch){ if(pointers.size<2) pinch=null; if(pointers.size===1){ const [q]=[...pointers.values()]; pan={x:q.x,y:q.y,tx:view.tx,ty:view.ty,moved:true}; } lastTap=null; return; }
+    if(drag){ const moved=circleMoved; drag=null; if(moved){ dishMsg.style.display='none'; scheduleRecompute(0); } else { manualDish=savedDish; setDishMode(); drawAll(); } lastTap=null; return; }
+    if(pan){
+      const tapped=!pan.moved && e.type==='pointerup'; pan=null; updateCursor();
+      if(tapped && e.pointerType!=='mouse'){
+        const now=performance.now();
+        if(lastTap && now-lastTap.t<320 && Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<30){ zoomAt(e.clientX,e.clientY, view.s>1.05?1:3); lastTap=null; touchZoomT=now; }
+        else lastTap={t:now,x:e.clientX,y:e.clientY};
+      }
+    }
+  }
+  ['pointerup','pointercancel'].forEach(t=>canvas.addEventListener(t,endPointer));
+  canvas.addEventListener('dblclick', e=>{ if(!srcImg || performance.now()-touchZoomT<700 || (dishEdit && hitTest(e).type!=='none')) return; zoomAt(e.clientX,e.clientY, view.s>1.05?1:3); });
+  canvas.addEventListener('wheel', e=>{ if(!srcImg) return; e.preventDefault(); zoomAt(e.clientX,e.clientY, view.s*Math.exp(-e.deltaY*0.0015)); }, {passive:false});
+
 })();
+
 </script>
 <script>
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
