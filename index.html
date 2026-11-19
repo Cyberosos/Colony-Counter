@@ -942,11 +942,20 @@ function byShape(pts,res,med){
   const r1=Math.max(1,Math.round(S.medR*.25)),r2=Math.max(r1+2,Math.round(S.medR*3));
   const g1=dishBlur(a,r1),g2=dishBlur(dishBlur(a,r2,r2),r2);
   const z=(x,y)=>{const i=Math.round(y)*w+Math.round(x);return sgn*(g1[i]-g2[i])};
+  // which round body of the blob (found from its outline) a centre sits in
+  const bodyOf=(p,bs)=>{if(!bs||bs.length<2)return -1;let bi=-1,bd=1e9;
+    bs.forEach((b,i)=>{const dd=Math.hypot(p.x-b.x,p.y-b.y);if(b.d>=S.medR*.4&&dd<Math.max(b.d*1.3,S.medR*.5)&&dd<bd){bd=dd;bi=i}});return bi};
+  let curBodies=null;
   const separate=(p,q)=>{
     const zp=z(p.x,p.y),zq=z(q.x,q.y),lo=Math.min(zp,zq),hi=Math.max(zp,zq);
-    if(lo<=0||lo<hi*.7)return false;                 // a pale lobe on the edge of a darker colony
+    if(lo<=0)return false;
+    // two round bodies with a waist between them: smooth colonies stuck together
+    {const bp=bodyOf(p,curBodies),bq=bodyOf(q,curBodies);if(bp>=0&&bq>=0&&bp!==bq&&Math.hypot(p.x-q.x,p.y-q.y)>=S.medR*.9)return true}
     const n=Math.max(3,Math.ceil(Math.hypot(p.x-q.x,p.y-q.y)));let m=1e9;
     for(let s=1;s<n;s++){const t=s/n;m=Math.min(m,z(p.x+(q.x-p.x)*t,p.y+(q.y-p.y)*t))}
+    // a pale lobe on the edge of a darker colony fades out without a gap; a paler colony touching
+    // a darker one (two kinds of colony on one plate) has a clear gap before it
+    if(lo<hi*.7)return m<lo*.6;
     return m<lo*.9;                                   // a lighter dip between two centres
   };
   const out=free.map(p=>({...p,comp:null,free:true}));
@@ -967,7 +976,7 @@ function byShape(pts,res,med){
       }
       if(!g.length)continue;
     }
-    g.sort((u,v)=>z(v.x,v.y)-z(u.x,u.y));
+    g.sort((u,v)=>z(v.x,v.y)-z(u.x,u.y));curBodies=c.bodies||null;
     const reach=Math.max(S.medR*3,2*Math.sqrt(c.area/Math.PI)+S.medR);
     const heads=[],sets=new Map();
     for(const p of g){
@@ -1000,7 +1009,7 @@ async function detect(g){
   const sg=res.comps.filter(c=>c.n===1).map(c=>c.area).sort((a,b)=>a-b);
   const med=sg.length?sg[sg.length>>1]:20;
   S.medR=Math.sqrt(med/Math.PI);
-  const shapeRes=res;
+  const shapeRes=res;S.zres=res;
   await pause('Leaving out glare…');stale(g);
   if(S.glareOn)findStreaks(res.ch,res.pol,res.rb);else{S.streak=null;S.streakCanvas=null;S.streaks=0}
   const scale=Math.max(.25,R/290);
@@ -1084,8 +1093,11 @@ function detectPass(rb,loose){
   const ab=[MM.mad];
   const sigma=1.4826*ab[ab.length>>1]+.05;
   const T=med+(loose?2.6:(9-S.sens*.75))*sigma;
+  // two levels: a spot must reach the strict level somewhere, and then takes in all of its body
+  // down to a looser level. Pale colonies with a bright rim or a dark crease are measured whole.
+  const TL=loose?T:med+Math.min(3.2*sigma,T-med);
   const mask=new Uint8Array(w*h);
-  for(let i=0;i<mask.length;i++)if(inR[i]&&diff[i]>T)mask[i]=1;
+  for(let i=0;i<mask.length;i++)if(inR[i]&&diff[i]>TL)mask[i]=1;
   const minArea=Math.max(4,Math.round(scale*scale*S.minSize*S.minSize*1.6));
   const maxArea=Math.PI*R*R*.08;
   const comps=[];const stack=new Int32Array(w*h);const pix=[];const lab=new Int32Array(w*h).fill(-1);
@@ -1096,7 +1108,7 @@ function detectPass(rb,loose){
     while(top){const p=stack[--top];pix.push(p);if(diff[p]>pk)pk=diff[p];{const qx=p%w,qy=(p-qx)/w;if(qx<bx0)bx0=qx;if(qx>bx1)bx1=qx;if(qy<by0)by0=qy;if(qy>by1)by1=qy}const px=p%w,py=(p-px)/w;sx+=px;sy+=py;sxx+=px*px;syy+=py*py;sxy+=px*py;
       for(let oy=-1;oy<=1;oy++){const ny=py+oy;if(ny<0||ny>=h)continue;
         for(let ox=-1;ox<=1;ox++){const nx=px+ox;if(nx<0||nx>=w)continue;const q2=ny*w+nx;if(mask[q2]===1){mask[q2]=2;stack[top++]=q2}}}}
-    if(pix.length<minArea||pix.length>maxArea)continue;
+    if(pix.length<minArea||pix.length>maxArea||pk<=T)continue;
     const N=pix.length,mx=sx/N,my=sy/N,vx=sxx/N-mx*mx,vy=syy/N-my*my,cv=sxy/N-mx*my;
     const tr=(vx+vy)/2,dt=Math.sqrt(Math.max(0,tr*tr-(vx*vy-cv*cv)));
     const c={x:mx,y:my,area:N,n:1,elong:Math.sqrt((tr+dt)/Math.max(.01,tr-dt)),q:(pk-med)/sigma,phi:.5*Math.atan2(2*cv,vx-vy),bw:bx1-bx0+1,bh:by1-by0+1};
@@ -1104,7 +1116,7 @@ function detectPass(rb,loose){
     for(const q of pix)lab[q]=comps.length;
     comps.push(c);
   }
-  return{comps,rb,ch:L[0].ch,pol:L[0].pol,lab};
+  return{comps,rb,ch:L[0].ch,pol:L[0].pol,lab,diff,med,sigma};
 }
 
 /* Count touching colonies in one blob by finding separate "centres" (distance peaks)
@@ -1206,9 +1218,18 @@ function scoreConfidence(objs){
   const strong=objs.filter(o=>!o.free&&o.q>Q0).map(o=>o.q).sort((a,b)=>a-b);
   const qTyp=strong.length>=5?strong[Math.floor(strong.length*.5)]:0;
 
+  // a colony's whole body counts, not only its centre: a pale colony with a dark crease or a bright
+  // rim is weak at its centre but clearly stands out as a solid disc
+  const zr=S.zres;
+  for(const o of objs){o.qb=0;if(!zr||!zr.diff||o.r<S.medR*.8)continue;
+    const rr=o.r*.7,st=Math.max(1,Math.round(rr/8));let s=0,n=0;
+    for(let dy=-Math.ceil(rr);dy<=rr;dy+=st)for(let dx=-Math.ceil(rr);dx<=rr;dx+=st){if(dx*dx+dy*dy>rr*rr)continue;
+      const x=Math.round(o.x+dx),y=Math.round(o.y+dy);if(x<0||y<0||x>=w||y>=h)continue;const i=y*w+x;s+=(zr.diff[i]-zr.med)/zr.sigma;n++}
+    o.qb=n?s/n:0}
   for(const o of objs){
     // stands out from the noise, and is not far weaker than this plate's typical colony
-    let base=(o.q-Q0)/1.1;if(qTyp)base=Math.min(base,(o.q/qTyp-.3)/.08);base=Math.min(base,6);
+    const qe=Math.max(o.q,o.qb*1.6);
+    let base=(qe-Q0)/1.1;if(qTyp)base=Math.min(base,(qe/qTyp-.3)/.08);base=Math.min(base,6);
     let L=base,edge=0;
     if(o.dn>.9)edge+=Math.min(1,(o.dn-.9)/.1);       // gentle: reflections are caught by shape
     const bi=Math.floor((o.dn-.6)/.025);if(bi>=0&&bi<ring.length&&ring[bi])edge+=2.5;
