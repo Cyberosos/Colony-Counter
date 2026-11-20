@@ -993,6 +993,66 @@ function byShape(pts,res,med){
   }
   return out;
 }
+/* Round colonies found from their outline: every sharp edge votes for the centre of the circle it
+   could lie on. Catches pale colonies whose colour is close to the agar but whose edge is crisp. */
+function findRings(rmin,rmax){
+  const w=S.w,h=S.h,C=S.circle,d=S.rgba,R=C.r;
+  const x0=Math.max(2,Math.floor(C.x-R)),x1=Math.min(w-3,Math.ceil(C.x+R)),y0=Math.max(2,Math.floor(C.y-R)),y1=Math.min(h-3,Math.ceil(C.y+R));
+  // brightness, lightly smoothed
+  const Lm=S.ch[0],sm=dishBlur(Lm,1);
+  const gx=new Float32Array(w*h),gy=new Float32Array(w*h),mg=new Float32Array(w*h),smp=[];
+  const R2=(R*.95)**2;
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const dx=x-C.x,dy=y-C.y;if(dx*dx+dy*dy>R2)continue;const i=y*w+x;
+    if(S.ink&&S.ink[i])continue;
+    const a=sm[i-w-1],b=sm[i-w],c=sm[i-w+1],e=sm[i-1],f=sm[i+1],g=sm[i+w-1],k=sm[i+w],l=sm[i+w+1];
+    const X=(c+2*f+l)-(a+2*e+g),Y=(g+2*k+l)-(a+2*b+c);gx[i]=X;gy[i]=Y;const m=Math.hypot(X,Y);mg[i]=m;if((x+y)%3===0)smp.push(m)}
+  if(smp.length<100)return[];
+  const ms=sortedSample(smp),thr=Math.max(ms[Math.floor(ms.length*.88)],ms[ms.length>>1]*3,8);
+  // thin edges: keep a pixel only where the edge is strongest across it
+  const E=[];
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const i=y*w+x,m=mg[i];if(m<thr)continue;
+    const ux=gx[i]/m,uy=gy[i]/m,ox=Math.round(ux),oy=Math.round(uy);
+    if(m<mg[i+oy*w+ox]||m<mg[i-oy*w-ox])continue;E.push(i)}
+  // votes, on a half-size grid, both ways along the edge's normal
+  const ds=2,aw=Math.ceil(w/ds),ah=Math.ceil(h/ds),acc=new Float32Array(aw*ah);
+  for(const i of E){const x=i%w,y=(i-x)/w,m=mg[i],ux=gx[i]/m,uy=gy[i]/m;
+    for(let r=rmin;r<=rmax;r++)for(const s of[1,-1]){const cx=Math.round((x+s*ux*r)/ds),cy=Math.round((y+s*uy*r)/ds);
+      if(cx>=0&&cy>=0&&cx<aw&&cy<ah)acc[cy*aw+cx]++}}
+  const A=boxBlur(acc,aw,ah,1);
+  const minV=Math.max(4,2*Math.PI*rmin*.25/ (ds*ds) );
+  const peaks=[];
+  for(let y=2;y<ah-2;y++)for(let x=2;x<aw-2;x++){const v=A[y*aw+x];if(v<minV)continue;let mx=true;
+    for(let dy=-2;dy<=2&&mx;dy++)for(let dx=-2;dx<=2;dx++){if((dx||dy)&&A[(y+dy)*aw+x+dx]>v){mx=false;break}}
+    if(mx)peaks.push({x:x*ds+.5,y:y*ds+.5,v})}
+  peaks.sort((a,b)=>b.v-a.v);
+  // check each candidate: how much of a full circle of edges, facing its centre, surrounds it
+  const isE=new Uint8Array(w*h);for(const i of E)isE[i]=1;
+  const out=[],NB=32;
+  for(const p of peaks.slice(0,1500)){
+    if(Math.hypot(p.x-C.x,p.y-C.y)>R*.9)continue;
+    if(out.some(o=>Math.hypot(o.x-p.x,o.y-p.y)<o.r*.6))continue;
+    // edges of one colony all face the same way (brighter inside, or darker inside)
+    const ang=[[],[]];for(let r=0;r<=rmax+2;r++){ang[0].push(new Uint8Array(NB));ang[1].push(new Uint8Array(NB))}
+    const X0=Math.max(x0,Math.floor(p.x-rmax-2)),X1=Math.min(x1,Math.ceil(p.x+rmax+2)),Y0=Math.max(y0,Math.floor(p.y-rmax-2)),Y1=Math.min(y1,Math.ceil(p.y+rmax+2));
+    for(let y=Y0;y<=Y1;y++)for(let x=X0;x<=X1;x++){const i=y*w+x;if(!isE[i])continue;const dx=x-p.x,dy=y-p.y,dd=Math.hypot(dx,dy);
+      if(dd<rmin-1.5||dd>rmax+1.5)continue;const dt=(gx[i]*dx+gy[i]*dy)/(mg[i]*dd);if(Math.abs(dt)<.8)continue;
+      const b=Math.min(NB-1,Math.floor((Math.atan2(dy,dx)+Math.PI)/(2*Math.PI)*NB)),r=Math.round(dd),sgI=dt<0?0:1;
+      for(let k=r-1;k<=r+1;k++)if(k>=0&&k<=rmax+2)ang[sgI][k][b]=1}
+    let best=0,br=0,bs=0;
+    for(let sI=0;sI<2;sI++)for(let r=rmin;r<=rmax;r++){let c=0;for(let b=0;b<NB;b++)c+=ang[sI][r][b];const f=c/NB;if(f>best+.02||(f>=best-.02&&f>=.5&&r<br)){best=Math.max(best,f);br=r;bs=sI}}
+    if(best<.5)continue;
+    // a colony differs from the agar just outside its edge
+    let si=[0,0,0],ni=0,so=[0,0,0],no=0;
+    for(let k=0;k<48;k++){const a=k/48*6.283,ca=Math.cos(a),sa=Math.sin(a);
+      for(const t of[.25,.5]){const x=Math.round(p.x+ca*br*t),y=Math.round(p.y+sa*br*t);if(x<0||y<0||x>=w||y>=h)continue;const j=(y*w+x)*4;si[0]+=d[j];si[1]+=d[j+1];si[2]+=d[j+2];ni++}
+      {const x=Math.round(p.x+ca*br*1.3),y=Math.round(p.y+sa*br*1.3);if(x<0||y<0||x>=w||y>=h)continue;const j=(y*w+x)*4;so[0]+=d[j];so[1]+=d[j+1];so[2]+=d[j+2];no++}}
+    if(!ni||!no)continue;
+    const cd=Math.hypot(si[0]/ni-so[0]/no,si[1]/ni-so[1]/no,si[2]/ni-so[2]/no);
+    if(cd<12)continue;
+    if(S.ink&&S.ink[Math.round(p.y)*w+Math.round(p.x)])continue;
+    out.push({x:p.x,y:p.y,r:br,cov:best,cd})}
+  return out;
+}
 async function detect(g){
   if(!S.gray)return;
   const R=S.circle.r;
@@ -1063,6 +1123,17 @@ async function detect(g){
    for(const B of big){if(gone.has(B))continue;
      for(const o of S.auto){if(o===B||gone.has(o)||o.r>=B.r)continue;{const dd=Math.hypot(o.x-B.x,o.y-B.y);if(dd<B.r*1.05||(dd<B.r*1.3&&o.q<B.q&&o.r>B.r*.45)){gone.add(o);B.q=Math.max(B.q,o.q)}}}}
    if(gone.size)S.auto=S.auto.filter(o=>!gone.has(o));}
+  // round colonies seen from their outline (pale colonies on a plate of darker ones); a ring
+  // replaces the smaller pieces found inside it and keeps their strength
+  {const rmin=Math.max(4,Math.round(S.medR*1.3)),rmax=Math.max(rmin+4,Math.min(Math.round(S.circle.r*.15),Math.round(S.medR*4)));
+   const rings=findRings(rmin,rmax),gone=new Set();
+   for(const H of rings){
+     const near=S.auto.filter(o=>!gone.has(o)&&Math.hypot(o.x-H.x,o.y-H.y)<H.r*.6);
+     if(near.some(o=>o.r>=H.r*.75))continue;
+     const qs=[];
+     for(const o of S.auto)if(!gone.has(o)&&o.r<H.r*.75&&Math.hypot(o.x-H.x,o.y-H.y)<H.r*.8){gone.add(o);qs.push(o.q)}
+     S.auto.push({x:H.x,y:H.y,r:H.r+1,n:1,off:false,q:Math.max(5.2+(H.cov-.5)*15,...qs),comp:null,grp:null,free:false})}
+   if(gone.size)S.auto=S.auto.filter(o=>!gone.has(o));}
   await pause('Scoring each colony…');stale(g);
   if(S.streak)S.auto=S.auto.filter(o=>{const x=Math.round(o.x),y=Math.round(o.y);return!(x>=0&&y>=0&&x<S.w&&y<S.h&&S.streak[y*S.w+x])});
   scoreConfidence(S.auto);
@@ -1108,7 +1179,9 @@ function detectPass(rb,loose){
     while(top){const p=stack[--top];pix.push(p);if(diff[p]>pk)pk=diff[p];{const qx=p%w,qy=(p-qx)/w;if(qx<bx0)bx0=qx;if(qx>bx1)bx1=qx;if(qy<by0)by0=qy;if(qy>by1)by1=qy}const px=p%w,py=(p-px)/w;sx+=px;sy+=py;sxx+=px*px;syy+=py*py;sxy+=px*py;
       for(let oy=-1;oy<=1;oy++){const ny=py+oy;if(ny<0||ny>=h)continue;
         for(let ox=-1;ox<=1;ox++){const nx=px+ox;if(nx<0||nx>=w)continue;const q2=ny*w+nx;if(mask[q2]===1){mask[q2]=2;stack[top++]=q2}}}}
-    if(pix.length<minArea||pix.length>maxArea||pk<=T)continue;
+    if(pix.length<minArea||pix.length>maxArea)continue;
+    // weak at its strongest point, but a solid patch well above noise: a pale colony
+    if(pk<=T&&!(pix.length>=minArea*3&&pk>med+3.8*sigma&&pix.length/((bx1-bx0+1)*(by1-by0+1)*.785)>=.45&&Math.max(bx1-bx0,by1-by0)<2.5*Math.min(bx1-bx0,by1-by0)+2))continue;
     const N=pix.length,mx=sx/N,my=sy/N,vx=sxx/N-mx*mx,vy=syy/N-my*my,cv=sxy/N-mx*my;
     const tr=(vx+vy)/2,dt=Math.sqrt(Math.max(0,tr*tr-(vx*vy-cv*cv)));
     const c={x:mx,y:my,area:N,n:1,elong:Math.sqrt((tr+dt)/Math.max(.01,tr-dt)),q:(pk-med)/sigma,phi:.5*Math.atan2(2*cv,vx-vy),bw:bx1-bx0+1,bh:by1-by0+1};
