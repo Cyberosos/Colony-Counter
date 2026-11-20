@@ -75,7 +75,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .slot .slotname{display:flex;flex-direction:column;min-width:0}
 .slot .slotname b{font-family:var(--mono);font-size:1rem}
 .slot input{min-height:44px;text-align:center;font-family:var(--mono);font-variant-numeric:tabular-nums}
-.slot button{min-height:44px;padding:8px 10px;font-size:.85rem}
+.slot .slottag{font-size:.75rem;font-weight:700;color:var(--muted);min-width:76px;text-align:right}
+.slot.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.slot.active .slottag{color:var(--accent)}
 .slot.filled{border-color:var(--accent);background:var(--accent-soft)}
 .tunebtn{width:100%}
 .dropzone{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.82rem;color:var(--muted)}
@@ -122,6 +124,8 @@ body.tuning .stage{display:flex;justify-content:center}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted)}
 .legend i{display:inline-block;width:11px;height:11px;border-radius:50%;border:2.5px solid;vertical-align:-1px;margin-right:5px}
 details{border-top:1px solid var(--line);padding-top:10px}
+.card>details{border:0;padding:0}
+.card>details[open]>*+*{margin-top:12px}
 summary{cursor:pointer;font-weight:700;color:var(--accent);list-style:none;padding:4px 0}
 summary::-webkit-details-marker{display:none}
 summary::after{content:" ▾"}
@@ -149,7 +153,9 @@ sup{font-size:.62em}
 .plate img{width:56px;height:56px;border-radius:50%;object-fit:cover;background:var(--stage)}
 .plate .meta{min-width:0;display:flex;flex-direction:column;gap:2px}
 .plate .meta b{overflow-wrap:anywhere}
-.plate .meta span{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.plate .meta span{font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.plate .meta .pc{font-size:1.15rem;font-variant-numeric:tabular-nums}
+.plate .meta .chip{align-self:flex-start}
 .plate button{min-height:40px;padding:6px 10px;font-size:.8rem}
 .sum{display:flex;flex-direction:column;gap:10px}
 .sumrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px}
@@ -175,8 +181,8 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
     <div class="brand">
       <div class="dish" aria-hidden="true"></div>
       <div>
-        <h1>Colony Counter <span class="pro">PRO</span></h1>
-        <div class="demo-note">Demo: all Pro features unlocked</div>
+        <h1>Colony Counter</h1>
+        <div class="demo-note">Count plates, get CFU/mL</div>
       </div>
     </div>
   </header>
@@ -227,35 +233,18 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
       </div>
       <p class="hint" id="autoNotes"></p>
       <button type="button" id="tuneBtn" class="tunebtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Fine-tune detection</button>
-      <div class="seg three" role="group" aria-label="Tap mode">
-        <button type="button" id="modeAdd" aria-pressed="true">＋ Add</button>
-        <button type="button" id="modeRemove" aria-pressed="false">− Remove</button>
-        <button type="button" id="modeCircle" aria-pressed="false">◯ Circle</button>
-      </div>
-      <p class="hint" id="modeHint"></p>
-      <div class="tools2">
-        <button type="button" id="zoomOut" aria-label="Zoom out">− Zoom</button>
-        <button type="button" id="zoomIn" aria-label="Zoom in">＋ Zoom</button>
-        <button type="button" id="zoomFit">Fit</button>
-        <button type="button" id="lockBtn" aria-pressed="false">Lock circle</button>
-        <button type="button" id="undoBtn" disabled>Undo</button>
-        <button type="button" id="findDishBtn">Find dish</button>
-      </div>
       <button type="button" id="saveImgBtn" class="tunebtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></svg>Save counted image</button>
       <div class="legend">
-        <span><i style="border-color:#35e08b"></i>Found by the app</span>
-        <span><i style="border-color:#ffcf4a"></i>Clump, counted as several</span>
-        <span><i style="border-color:#4fb3ff"></i>Added by you</span>
+        <span><i style="border-color:#35e08b"></i>Counted</span>
         <span><i style="border-color:#c8f06a;border-style:dashed"></i>Less certain</span>
-        <span><i class="sq"></i>Writing, left out</span>
-        <span><i class="sq glare"></i>Glare, left out</span>
-        <span>Hold the eye button to see the plain photo</span>
+        <span><i style="border-color:#ffcf4a"></i>Stuck together (×2, ×3)</span>
+        <span><i style="border-color:#4fb3ff"></i>Added by you</span>
       </div>
 
     </div>
 
     <div class="card">
-      <div class="step"><span class="num">3</span><h2>CFU/mL</h2><span class="pro">PRO</span></div>
+      <div class="step"><span class="num">3</span><h2>CFU/mL</h2></div>
       <div class="seg" role="group" aria-label="Calculation method">
         <button type="button" data-method="two" aria-pressed="true">Two dilutions (ISO 7218)</button>
         <button type="button" data-method="one" aria-pressed="false">One dilution</button>
@@ -277,16 +266,17 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
         </div>
       </div>
       <div class="slots" id="slots">
-        <div class="slot">
+        <div class="slot" id="slot1">
           <div class="slotname"><span class="lbl">First plate</span><b id="s1d">10⁻⁴</b></div>
-          <input type="number" id="s1n" inputmode="numeric" min="0" placeholder="Colonies" aria-label="Colonies on the first dilution plate">
-          <button type="button" id="s1use" class="primary">Use this photo</button>
+          <input type="number" id="s1n" inputmode="numeric" min="0" placeholder="—" aria-label="Colonies on the first dilution plate">
+          <span class="slottag" id="s1tag"></span>
         </div>
-        <div class="slot">
+        <div class="slot" id="slot2">
           <div class="slotname"><span class="lbl">Second plate</span><b id="s2d">10⁻⁵</b></div>
-          <input type="number" id="s2n" inputmode="numeric" min="0" placeholder="Colonies" aria-label="Colonies on the second dilution plate">
-          <button type="button" id="s2use">Use this photo</button>
+          <input type="number" id="s2n" inputmode="numeric" min="0" placeholder="—" aria-label="Colonies on the second dilution plate">
+          <span class="slottag" id="s2tag"></span>
         </div>
+        <button type="button" class="primary" id="nextDil">Count the next plate</button>
         <p class="hint" id="slotHint"></p>
       </div>
       <div class="result" aria-live="polite">
@@ -298,7 +288,7 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
     </div>
 
     <div class="card">
-      <div class="step"><span class="num">4</span><h2>Save to session</h2><span class="pro">PRO</span></div>
+      <div class="step"><span class="num">4</span><h2>Save to session</h2></div>
       <div class="row">
         <div class="field">
           <label for="sampleId">Sample ID</label>
@@ -313,13 +303,34 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
       <p class="hint">With two dilutions, both plates from step 3 are saved together under this sample ID.</p>
     </div>
 
-    <p class="free">Free version: steps 1 and 2. Pro adds CFU/mL, sessions with averaged results, history and reports.</p>
   </section>
 
   <!-- SESSION -->
   <section id="panel-session" class="panel" hidden style="display:flex;flex-direction:column;gap:14px">
     <div class="card">
-      <div class="step"><h2>How to calculate</h2><span class="pro">PRO</span></div>
+      <div class="step"><h2>Results by sample</h2></div>
+      <div class="sum" id="summary"></div>
+    </div>
+    <div class="card">
+      <h2>Plates in this session</h2>
+      <ul class="plates" id="plateList"></ul>
+    </div>
+    <div class="card">
+      <div class="step"><h2>Report</h2></div>
+      <pre class="report" id="reportPre"></pre>
+      <div class="row">
+        <button type="button" class="primary" id="copyReport">Copy report</button>
+        <button type="button" id="copyExcel">Copy for Excel</button>
+      </div>
+      <div id="fallbackBox" hidden>
+        <p class="hint">Copy didn't work here. The text is selected below; copy it manually.</p>
+        <textarea class="fallback" id="fallbackText" readonly></textarea>
+      </div>
+      <button type="button" id="finishBtn">Finish session and move to History</button>
+    </div>
+    <div class="card">
+      <details>
+        <summary>Calculation settings</summary>
       <div class="seg" role="group" aria-label="Calculation method">
         <button type="button" data-method="two" aria-pressed="true">Two dilutions (ISO 7218)</button>
         <button type="button" data-method="one" aria-pressed="false">One dilution</button>
@@ -330,35 +341,14 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
         <div class="field"><label for="limMax">Most colonies</label><input type="number" id="limMax" inputmode="numeric" min="50" max="1000" value="300"></div>
       </div>
       <p class="hint">Plates above the most are left out. At least one plate needs the fewest or more, otherwise the result is an estimate. ISO 7218 uses 10 and 300.</p>
-    </div>
-    <div class="card">
-      <div class="step"><h2>Results by sample</h2><span class="pro">PRO</span></div>
-      <div class="sum" id="summary"></div>
-    </div>
-    <div class="card">
-      <h2>Plates in this session</h2>
-      <ul class="plates" id="plateList"></ul>
-    </div>
-    <div class="card">
-      <div class="step"><h2>Report</h2><span class="pro">PRO</span></div>
-      <pre class="report" id="reportPre"></pre>
-      <div class="row">
-        <button type="button" class="primary" id="copyReport">Copy report</button>
-        <button type="button" id="copyExcel">Copy for Excel</button>
-      </div>
-      <div id="fallbackBox" hidden>
-        <p class="hint">Copy didn't work here. The text is selected below; copy it manually.</p>
-        <textarea class="fallback" id="fallbackText" readonly></textarea>
-      </div>
-      <p class="hint">In the published app this also saves a PDF and an Excel file.</p>
-      <button type="button" id="finishBtn">Finish session and move to History</button>
+      </details>
     </div>
   </section>
 
   <!-- HISTORY -->
   <section id="panel-history" class="panel" hidden style="display:flex;flex-direction:column;gap:14px">
     <div class="card">
-      <div class="step"><h2>Past sessions</h2><span class="pro">PRO</span></div>
+      <div class="step"><h2>Past sessions</h2></div>
       <div id="histList" style="display:flex;flex-direction:column;gap:10px"></div>
     </div>
   </section>
@@ -367,6 +357,15 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
   <div class="sheethead"><h2 id="tuneTitle">Fine-tune detection</h2><button type="button" class="primary" id="tuneDone">Done</button></div>
   <p class="hint">The plate stays in view above. Every change recounts straight away.</p>
   <div class="adjust">
+      <div class="field">
+        <span class="lbl">The dish</span>
+        <div class="seg three" role="group" aria-label="Adjust the dish">
+          <button type="button" id="modeCircle" aria-pressed="false">Move / resize</button>
+          <button type="button" id="findDishBtn">Find again</button>
+          <button type="button" id="lockBtn" aria-pressed="false">Lock circle</button>
+        </div>
+        <small id="dishNote">Only colonies inside the dashed circle are counted.</small>
+      </div>
       <div class="field">
     <span class="lbl">Colonies stuck together (big or small)</span>
     <div class="seg" role="group" aria-label="Colonies stuck together">
@@ -460,7 +459,7 @@ function setImage(img,iw,ih){
   S.fixed=null;S.inkKey='';
   const dish=findDish();
   S.circle=dish||{x:S.w/2,y:S.h/2,r:Math.min(S.w,S.h)/2*.88};S.dishFound=!!dish;
-  S.z=1;S.px=0;S.py=0;setLock(false);updateZoomUI();
+  S.z=1;S.px=0;S.py=0;setLock(false);updateZoomUI();if(typeof onNewPhoto==='function')onNewPhoto();
   runDetect();
   if(!dish){setMode('circle');toast("Couldn't find the dish. Drag the circle onto it, then tap Lock circle.")}
 }
@@ -1407,17 +1406,12 @@ function draw(){
 function refresh(){
   draw();
   $('#countBig').textContent=count();
-  $('#undoBtn').disabled=!S.undo.length;$('#fabUndo').disabled=!S.undo.length;
+  $('#fabUndo').disabled=!S.undo.length;
   {let added=0,removed=0;for(const m of S.manual)added+=m.n;for(const m of S.auto){if(m.off){removed++;continue}if(m.n>1&&vis(m))added+=m.n-1}
    const en=$('#editNote');en.hidden=!(added||removed);en.textContent=[added?'+'+added+' added':'',removed?'−'+removed+' removed':''].filter(Boolean).join(' · ')+' by you'}
   $('#polNote').textContent='Detected: colonies '+(S.usedPol==='light'?'lighter':'darker')+' than the agar';
   const notes=[];
-  if(S.w)notes.push(S.dishFound?'Dish found automatically':'Dish placed by hand');
-  if(S.inkOn&&S.inkMarks)notes.push(S.inkMarks===1?'1 writing mark left out':S.inkMarks+' writing marks left out');
-  if(S.glareNote)notes.push(S.glareNote.charAt(0).toUpperCase()+S.glareNote.slice(1));
-  if(S.streaks)notes.push(S.streaks===1?'1 glare line left out':S.streaks+' glare lines left out');
-  const refl=S.auto.filter(m=>!m.off&&m.edge&&m.baseConf>=S.conf&&m.conf<S.conf).length;
-  if(refl)notes.push(refl===1?'1 edge reflection left out':refl+' edge reflections left out');
+  if(S.w)notes.push(S.dishFound?'Dish found ✓  Not right? Fine-tune → The dish':'Dish placed by hand. Fine-tune → The dish to adjust it.');
   $('#confOut').textContent=S.conf+'%';$('#confReset').hidden=S.conf===40;
   $('#autoNotes').textContent=notes.join(' · ');
   $('#inkNote').textContent=!S.inkOn?'Off':S.inkMarks?(S.inkMarks+' found'):'None found';
@@ -1434,9 +1428,6 @@ function zoomAt(f,ix,iy){
   S.px=ix-(ix-S.px)*S.z/nz;S.py=iy-(iy-S.py)*S.z/nz;S.z=nz;clampPan();updateZoomUI();draw();
 }
 function centerImg(){return{x:S.px+S.w/S.z/2,y:S.py+S.h/S.z/2}}
-$('#zoomIn').addEventListener('click',()=>{if(!S.w)return;const c=centerImg();zoomAt(1.5,c.x,c.y)});
-$('#zoomOut').addEventListener('click',()=>{if(!S.w)return;const c=centerImg();zoomAt(1/1.5,c.x,c.y)});
-$('#zoomFit').addEventListener('click',()=>{S.z=1;S.px=0;S.py=0;updateZoomUI();draw()});
 view.addEventListener('wheel',e=>{if(!S.w)return;e.preventDefault();const p=toImg(e);zoomAt(e.deltaY<0?1.15:1/1.15,p.x,p.y)},{passive:false});
 
 /* ---------- touch: tap, drag, pinch ---------- */
@@ -1510,28 +1501,26 @@ const HINTS={
 };
 function setMode(m){
   if(m==='circle'&&S.locked){toast('Unlock the circle first.');return}
-  S.mode=m;['Add','Remove','Circle'].forEach(n=>$('#mode'+n).setAttribute('aria-pressed',m===n.toLowerCase()));
+  S.mode=m;$('#modeCircle').setAttribute('aria-pressed',m==='circle');
   $('#fabAdd').setAttribute('aria-pressed',m==='add');$('#fabRemove').setAttribute('aria-pressed',m==='remove');
   const bn=$('#modeBanner');bn.hidden=!(m==='add'||m==='remove');
-  bn.textContent=m==='add'?'Tap to add a colony':m==='remove'?'Tap a circle to remove it':'';
-  $('#modeHint').textContent=HINTS[m];updateZoomUI();draw();
+  bn.hidden=m==='view';
+  bn.textContent=m==='add'?'Tap to add a colony':m==='remove'?'Tap a circle to remove it':m==='circle'?'Drag inside to move the dish circle, drag its edge to resize':'';
+  updateZoomUI();draw();
 }
 function setLock(on){
   S.locked=on;const b=$('#lockBtn');b.setAttribute('aria-pressed',on);b.textContent=on?'Unlock circle':'Lock circle';
   $('#lockPill').hidden=!on;$('#modeCircle').disabled=on;
   if(on&&S.mode==='circle')setMode('view');else draw();
 }
-$('#modeAdd').addEventListener('click',()=>setMode(S.mode==='add'?'view':'add'));
-$('#modeRemove').addEventListener('click',()=>setMode(S.mode==='remove'?'view':'remove'));
 $('#fabAdd').addEventListener('click',()=>setMode(S.mode==='add'?'view':'add'));
 $('#fabRemove').addEventListener('click',()=>setMode(S.mode==='remove'?'view':'remove'));
 $('#fabUndo').addEventListener('click',()=>{const f=S.undo.pop();if(f){f();refresh();toast('Undone')}});
-$('#modeCircle').addEventListener('click',()=>setMode('circle'));
-$('#lockBtn').addEventListener('click',()=>{setLock(!S.locked);toast(S.locked?'Circle locked. Zoom and tap freely.':'Circle unlocked')});
-$('#undoBtn').addEventListener('click',()=>{const f=S.undo.pop();if(f){f();refresh()}});
+$('#modeCircle').addEventListener('click',()=>setMode(S.mode==='circle'?'view':'circle'));
+$('#lockBtn').addEventListener('click',()=>{setLock(!S.locked);toast(S.locked?'Circle locked. It stays put while you zoom and tap.':'Circle unlocked')});
 $('#findDishBtn').addEventListener('click',()=>{
   if(!S.w)return;if(S.locked){toast('Unlock the circle first.');return}
-  const d=findDish();if(!d){toast("Couldn't find the dish. Use Circle to place it by hand.");setMode('circle');return}
+  const d=findDish();if(!d){toast("Couldn't find the dish. Drag the circle onto it by hand.");setMode('circle');return}
   S.circle=d;runDetect();toast('Dish found')});
 const peekBtn=$('#peekBtn');
 const peekOn=e=>{e.preventDefault();if(!S.w)return;S.peek=true;$('#peekLabel').hidden=false;draw()};
@@ -1569,30 +1558,36 @@ function statusTxt(st){return st==='ok'?'Countable ('+RULES.min+'–'+RULES.max+
 function sig2(x){return x?Number(x.toPrecision(2)):0}
 function supD(d){return d?'10'+supTxt('-'+d):'1'}
 function cfuOf(n,d,v){return n*10**d/v}
-const SLOT=[{count:null,thumb:null},{count:null,thumb:null}];
+/* Two dilutions: the plate on screen fills the active slot by itself. "Count the next plate"
+   keeps the first count, opens the camera, and the next photo fills the second slot. */
+const SLOT=[{count:null,thumb:null,typed:false},{count:null,thumb:null,typed:false}];
+let ACTIVE=0,waitNew=false;
 function slotPlates(){const d=+dilSel.value,v=+$('#vol').value,out=[];
   SLOT.forEach((sl,k)=>{if(sl.count!=null)out.push({d:d+k,v,count:sl.count,thumb:sl.thumb})});return out}
+function followPhoto(){const sl=SLOT[ACTIVE];if(RULES.method==='two'&&S.w&&!waitNew&&!sl.typed)sl.count=count()}
 function syncSlots(){
   const d=+dilSel.value,two=RULES.method==='two';
   $('#slots').hidden=!two;$('#dilLabel').textContent=two?'First dilution':'Dilution plated';
   $('#s1d').textContent=supD(d);$('#s2d').textContent=supD(d+1);
   [0,1].forEach(k=>{const el=$('#s'+(k+1)+'n');const v=SLOT[k].count;if(document.activeElement!==el)el.value=v==null?'':v;
-    el.closest('.slot').classList.toggle('filled',v!=null)});
-  $('#s1use').classList.toggle('primary',SLOT[0].count==null);$('#s2use').classList.toggle('primary',SLOT[0].count!=null&&SLOT[1].count==null);
-  $('#slotHint').textContent=SLOT[0].count==null?'Count the '+supD(d)+' plate above, then tap Use this photo.'
-    :SLOT[1].count==null?'Now load the photo of the '+supD(d+1)+' plate and tap Use this photo on the second plate.'
-    :'Both plates ready. Save them to the session in step 4.';
+    const row=$('#slot'+(k+1));row.classList.toggle('filled',v!=null&&k!==ACTIVE);row.classList.toggle('active',k===ACTIVE&&!waitNew);
+    $('#s'+(k+1)+'tag').textContent=k===ACTIVE&&!waitNew?(SLOT[k].typed?'Typed':'This photo'):v!=null?'Saved ✓':k===ACTIVE&&waitNew?'Next photo':''});
+  const nb=$('#nextDil');nb.hidden=!(ACTIVE===0&&SLOT[0].count!=null);nb.textContent='Count the '+supD(d+1)+' plate next';
+  $('#slotHint').textContent=ACTIVE===0?(SLOT[0].count==null?'Add a photo of the '+supD(d)+' plate in step 1.':'Fix the count above if needed, then count the next plate. Or save now with one plate.')
+    :waitNew?'Take or choose the photo of the '+supD(d+1)+' plate.':'Both plates ready. Save them in step 4.';
 }
-function useSlot(k){
+function nextPlate(){
   if(!S.w){toast('Add a plate photo first.');return}
-  SLOT[k].count=count();SLOT[k].thumb=thumb(view,112);calc();
-  toast(k===0?'First plate set: '+SLOT[k].count+' colonies. Now photograph the '+supD(+dilSel.value+1)+' plate.':'Second plate set: '+SLOT[k].count+' colonies');
+  followPhoto();SLOT[0].thumb=thumb(view,112);ACTIVE=1;waitNew=true;SLOT[1]={count:null,thumb:null,typed:false};calc();
+  toast('First plate kept: '+SLOT[0].count+' colonies');
+  $('#camFile').click();
 }
-$('#s1use').addEventListener('click',()=>useSlot(0));$('#s2use').addEventListener('click',()=>useSlot(1));
+function onNewPhoto(){waitNew=false;SLOT[ACTIVE].typed=false;SLOT[ACTIVE].thumb=null}
+$('#nextDil').addEventListener('click',nextPlate);
 [0,1].forEach(k=>$('#s'+(k+1)+'n').addEventListener('input',e=>{const v=e.target.value.trim();
-  SLOT[k].count=v===''?null:Math.max(0,Math.round(+v));if(v==='')SLOT[k].thumb=null;calc()}));
+  SLOT[k].count=v===''?null:Math.max(0,Math.round(+v));SLOT[k].typed=v!=='';if(v==='')SLOT[k].thumb=null;calc()}));
 function calc(){
-  syncSlots();
+  followPhoto();syncSlots();
   if(RULES.method==='two'){
     const ps=slotPlates();const chip=$('#statusChip');
     if(!ps.length){$('#cfuBig').innerHTML='— <small>CFU/mL</small>';$('#formula').textContent='';$('#cfuNote').textContent='Fill in the first plate to see the result.';chip.hidden=true;return}
@@ -1693,11 +1688,12 @@ function renderSession(){
   const ul=$('#plateList');ul.innerHTML='';
   if(!session.length)ul.innerHTML='<li class="empty">Saved plates appear here.</li>';
   session.forEach((p,i)=>{const li=document.createElement('li');li.className='plate';
-    li.innerHTML='<img alt=""><div class="meta"><b></b><span></span><span class="chip"></span></div><button type="button">Delete</button>';
+    li.innerHTML='<img alt=""><div class="meta"><b></b><strong class="pc"></strong><span></span><span class="chip"></span></div><button type="button">Delete</button>';
     if(p.thumb)li.querySelector('img').src=p.thumb;else li.querySelector('img').style.visibility='hidden';
     li.querySelector('b').textContent=p.sample+(p.example?' ':'');
     if(p.example){const ex=document.createElement('span');ex.className='chip ex';ex.textContent='Example';ex.style.marginLeft='6px';li.querySelector('b').appendChild(ex)}
-    li.querySelectorAll('.meta span')[0].textContent=p.count+' col · '+(p.d?'10'+supTxt('-'+p.d):'undiluted')+' · '+p.v+' mL → '+sciTxt(p.cfu).replace('x10^',' × 10^');
+    li.querySelector('.pc').textContent=p.count+' colonies';
+    li.querySelectorAll('.meta span')[0].innerHTML=(p.d?'10<sup>−'+p.d+'</sup>':'Undiluted')+' · '+p.v+' mL · '+sciHTML(p.cfu)+' CFU/mL';
     const st=status(p.count);const chip=li.querySelector('.meta .chip:not(.ex)');chip.className='chip '+st;chip.textContent=statusTxt(st);
     li.querySelector('button').addEventListener('click',()=>{session.splice(i,1);renderSession();toast('Plate deleted')});
     ul.appendChild(li)});
@@ -1709,15 +1705,21 @@ $('#saveBtn').addEventListener('click',()=>{
   const sample=$('#sampleId').value.trim();if(!sample){toast('Type a sample ID so the plate can be grouped.');$('#sampleId').focus();return}
   let cleared=false;if(session.some(p=>p.example)){session=session.filter(p=>!p.example);cleared=true}
   if(RULES.method==='two'){
-    const ps=slotPlates();if(!ps.length){toast('Tap Use this photo on the first plate in step 3 first.');return}
+    followPhoto();if(SLOT[ACTIVE].count!=null&&!SLOT[ACTIVE].thumb&&!waitNew)SLOT[ACTIVE].thumb=thumb(view,112);
+    const ps=slotPlates();if(!ps.length){toast('Add a plate photo first.');return}
     ps.forEach(p=>session.push({sample,d:p.d,v:p.v,count:p.count,cfu:cfuOf(p.count,p.d,p.v),status:status(p.count),thumb:p.thumb,time:Date.now()}));
-    SLOT.forEach(sl=>{sl.count=null;sl.thumb=null});calc();renderSession();
+    SLOT.forEach(sl=>{sl.count=null;sl.thumb=null;sl.typed=false});ACTIVE=0;waitNew=true;calc();renderSession();nextSample();
     toast((ps.length===2?'Both plates':'1 plate')+' saved to session'+(cleared?'. Example plates removed.':''));return;
   }
   const n=count(),d=+dilSel.value,v=+$('#vol').value;
   session.push({sample,d,v,count:n,cfu:cfuOf(n,d,v),status:status(n),thumb:thumb(view,112),time:Date.now()});
-  renderSession();toast(cleared?'Plate saved. Example plates removed.':'Plate saved to session ('+session.length+')');
+  renderSession();nextSample();toast(cleared?'Plate saved. Example plates removed.':'Plate saved to session ('+session.length+')');
 });
+/* After saving, move the sample ID on: Sample A → Sample B, Milk-01 → Milk-02 */
+function nextSample(){const el=$('#sampleId'),v=el.value.trim();let n=v;
+  const m=v.match(/^(.*?)(\d+)$/);if(m){const k=String(+m[2]+1).padStart(m[2].length,'0');n=m[1]+k}
+  else{const c=v.slice(-1);if(/[A-Ya-y]/.test(c)&&(v.length===1||/[\s\-_]/.test(v.slice(-2,-1))))n=v.slice(0,-1)+String.fromCharCode(c.charCodeAt(0)+1)}
+  if(n!==v){el.value=n;setTimeout(()=>toast('Saved. Next sample: '+n),1400)}}
 function copy(text){
   const box=$('#fallbackBox');box.hidden=true;
   const fb=()=>{box.hidden=false;const ta=$('#fallbackText');ta.value=text;ta.focus();ta.select()};
@@ -1788,7 +1790,7 @@ function openTune(){
   requestAnimationFrame(()=>{const st=$('#stage').getBoundingClientRect(),tb=$('.tabs').getBoundingClientRect();
     window.scrollTo({top:window.scrollY+st.top-tb.bottom-10,behavior:'smooth'})});
 }
-function closeTune(){$('#tuneSheet').hidden=true;document.body.classList.remove('tuning');$('#tuneBtn').focus()}
+function closeTune(){if(S.mode==='circle')setMode('view');$('#tuneSheet').hidden=true;document.body.classList.remove('tuning');$('#tuneBtn').focus()}
 $('#tuneBtn').addEventListener('click',openTune);$('#tuneDone').addEventListener('click',closeTune);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#tuneSheet').hidden)closeTune()});
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{if(!$('#tuneSheet').hidden)closeTune()}));
