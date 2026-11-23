@@ -76,6 +76,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .slot .slotname b{font-family:var(--mono);font-size:1rem}
 .slot input{min-height:44px;text-align:center;font-family:var(--mono);font-variant-numeric:tabular-nums}
 .slot .slottag{font-size:.75rem;font-weight:700;color:var(--muted);min-width:76px;text-align:right}
+.nextpick{display:flex;flex-direction:column;gap:10px;border:1px dashed var(--accent);border-radius:12px;padding:12px}
+.nextpick .lbl{margin:0;font-weight:700}
+.linkbtn{align-self:center;background:none;border:0;color:var(--muted);text-decoration:underline;min-height:40px;box-shadow:none}
 .slot.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .slot.active .slottag{color:var(--accent)}
 .slot.filled{border-color:var(--accent);background:var(--accent-soft)}
@@ -277,6 +280,16 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
           <span class="slottag" id="s2tag"></span>
         </div>
         <button type="button" class="primary" id="nextDil">Count the next plate</button>
+        <div class="nextpick" id="nextPick" hidden>
+          <p class="lbl" id="nextPickLbl">Photo of the next plate</p>
+          <div class="row">
+            <label class="btn primary" for="nextCam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.3" r="3.6"/></svg>Take a photo</label>
+            <label class="btn" for="nextFile"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5-8 8"/></svg>Choose a photo</label>
+          </div>
+          <button type="button" class="linkbtn" id="nextCancel">Cancel</button>
+        </div>
+        <input class="file-input" type="file" id="nextCam" accept="image/*" capture="environment">
+        <input class="file-input" type="file" id="nextFile" accept="image/*">
         <p class="hint" id="slotHint"></p>
       </div>
       <div class="result" aria-live="polite">
@@ -469,7 +482,7 @@ function loadPhoto(f){
   const url=URL.createObjectURL(f);const img=new Image();
   $('#busy').hidden=false;$('#busy').textContent='Opening photo…';
   img.onload=()=>{setTimeout(()=>{setImage(img,img.naturalWidth,img.naturalHeight);URL.revokeObjectURL(url)},20)};
-  img.onerror=()=>{$('#busy').hidden=true;toast("That file isn't an image this browser can open. Try a JPG or PNG.")};
+  img.onerror=()=>{$('#busy').hidden=true;pendingNext=null;toast("That file isn't an image this browser can open. Try a JPG or PNG.")};
   img.src=url;
   setTimeout(()=>$('#stage').scrollIntoView({behavior:'smooth',block:'center'}),100);
 }
@@ -1561,7 +1574,7 @@ function cfuOf(n,d,v){return n*10**d/v}
 /* Two dilutions: the plate on screen fills the active slot by itself. "Count the next plate"
    keeps the first count, opens the camera, and the next photo fills the second slot. */
 const SLOT=[{count:null,thumb:null,typed:false},{count:null,thumb:null,typed:false}];
-let ACTIVE=0,waitNew=false;
+let ACTIVE=0,waitNew=false,pickOpen=false,pendingNext=null;
 function slotPlates(){const d=+dilSel.value,v=+$('#vol').value,out=[];
   SLOT.forEach((sl,k)=>{if(sl.count!=null)out.push({d:d+k,v,count:sl.count,thumb:sl.thumb})});return out}
 function followPhoto(){const sl=SLOT[ACTIVE];if(RULES.method==='two'&&S.w&&!waitNew&&!sl.typed)sl.count=count()}
@@ -1572,18 +1585,31 @@ function syncSlots(){
   [0,1].forEach(k=>{const el=$('#s'+(k+1)+'n');const v=SLOT[k].count;if(document.activeElement!==el)el.value=v==null?'':v;
     const row=$('#slot'+(k+1));row.classList.toggle('filled',v!=null&&k!==ACTIVE);row.classList.toggle('active',k===ACTIVE&&!waitNew);
     $('#s'+(k+1)+'tag').textContent=k===ACTIVE&&!waitNew?(SLOT[k].typed?'Typed':'This photo'):v!=null?'Saved ✓':k===ACTIVE&&waitNew?'Next photo':''});
-  const nb=$('#nextDil');nb.hidden=!(ACTIVE===0&&SLOT[0].count!=null);nb.textContent='Count the '+supD(d+1)+' plate next';
-  $('#slotHint').textContent=ACTIVE===0?(SLOT[0].count==null?'Add a photo of the '+supD(d)+' plate in step 1.':'Fix the count above if needed, then count the next plate. Or save now with one plate.')
+  const canNext=ACTIVE===0&&SLOT[0].count!=null;if(!canNext)pickOpen=false;
+  const nb=$('#nextDil');nb.hidden=!canNext||pickOpen;nb.textContent='Count the '+supD(d+1)+' plate next';
+  $('#nextPick').hidden=!pickOpen;$('#nextPickLbl').textContent='Photo of the '+supD(d+1)+' plate';
+  $('#slotHint').textContent=pickOpen?'Your first count ('+SLOT[0].count+') stays saved until the new photo is in.':ACTIVE===0?(SLOT[0].count==null?'Add a photo of the '+supD(d)+' plate in step 1.':'Fix the count above if needed, then count the next plate. Or save now with one plate.')
     :waitNew?'Take or choose the photo of the '+supD(d+1)+' plate.':'Both plates ready. Save them in step 4.';
 }
+/* "Count the next plate" only opens a choice (camera or gallery). Nothing changes until a new
+   photo actually loads, so backing out of the camera or gallery keeps everything as it was. */
 function nextPlate(){
   if(!S.w){toast('Add a plate photo first.');return}
-  followPhoto();SLOT[0].thumb=thumb(view,112);ACTIVE=1;waitNew=true;SLOT[1]={count:null,thumb:null,typed:false};calc();
-  toast('First plate kept: '+SLOT[0].count+' colonies');
-  $('#camFile').click();
+  pickOpen=true;calc();
 }
-function onNewPhoto(){waitNew=false;SLOT[ACTIVE].typed=false;SLOT[ACTIVE].thumb=null}
+function pickNext(f){
+  if(!f)return;
+  followPhoto();pendingNext={count:SLOT[0].count,thumb:thumb(view,112),typed:SLOT[0].typed};
+  loadPhoto(f);
+}
+function onNewPhoto(){
+  if(pendingNext){SLOT[0]={count:pendingNext.count,thumb:pendingNext.thumb,typed:pendingNext.typed};
+    ACTIVE=1;SLOT[1]={count:null,thumb:null,typed:false};pickOpen=false;
+    toast('First plate kept: '+pendingNext.count+' colonies');pendingNext=null}
+  waitNew=false;SLOT[ACTIVE].typed=false;SLOT[ACTIVE].thumb=null}
 $('#nextDil').addEventListener('click',nextPlate);
+$('#nextCancel').addEventListener('click',()=>{pickOpen=false;calc()});
+['#nextCam','#nextFile'].forEach(id=>$(id).addEventListener('change',e=>{pickNext(e.target.files&&e.target.files[0]);e.target.value=''}));
 [0,1].forEach(k=>$('#s'+(k+1)+'n').addEventListener('input',e=>{const v=e.target.value.trim();
   SLOT[k].count=v===''?null:Math.max(0,Math.round(+v));SLOT[k].typed=v!=='';if(v==='')SLOT[k].thumb=null;calc()}));
 function calc(){
