@@ -1,0 +1,9 @@
+{
+  // Cloudflare Workers: serve this folder as a static site.
+  // The name must match the Worker's name in the Cloudflare dashboard.
+  "name": "colony-counter",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./"
+  }
+}
