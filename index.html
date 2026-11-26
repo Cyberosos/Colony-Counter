@@ -1129,6 +1129,9 @@ async function detect(g){
    for(let y=Math.max(0,Math.floor(C.y-C.r*.9));y<Math.min(h,C.y+C.r*.9);y+=st)for(let x=Math.max(0,Math.floor(C.x-C.r*.9));x<Math.min(w,C.x+C.r*.9);x+=st)if(Math.hypot(x-C.x,y-C.y)<C.r*.9)ag.push(A0[y*w+x]);
    const agM=ag.length?medMad(ag):{md:0,mad:1},agL=agM.md,sigA=1.4826*agM.mad+.5,v=(x,y)=>{x=Math.round(x);y=Math.round(y);return x<0||y<0||x>=w||y>=h?0:sg*(A0[y*w+x]-agL)};
    for(const B of S.auto){if(B.r<2.2*S.medR)continue;
+     // near the dish wall a few small spots grouped together are not a big colony: the wall's
+     // bright edge would make the circle grow onto the wall, so leave them as they are
+     if(B.grp&&Math.hypot(B.x-C.x,B.y-C.y)>C.r*.85)continue;
      const inner=[];for(let k=0;k<24;k++){const a=k/24*6.283,t=B.r*.45*((k%3)+1)/3;inner.push(v(B.x+Math.cos(a)*t,B.y+Math.sin(a)*t))}
      inner.sort((p,q)=>p-q);const ref=inner[Math.floor(inner.length*.6)];if(!(ref>0))continue;
      B.q=Math.max(B.q,ref/sigA);      // a big colony's strength is its whole body against the agar
@@ -1355,9 +1358,14 @@ function scoreConfidence(objs){
       if(tc<.3)L-=Math.min(4,(.3-tc)/.3*4);
     }
     if(o.comp&&o.comp.elong>2.2)L-=Math.min(2,(o.comp.elong-2.2)*1.2);
-    if(S.ink){const x=Math.round(o.x),y=Math.round(o.y),k=Math.max(2,Math.round(S.medR));let nearInk=false;   // writing edges leave bright fringes
-      for(let dy=-k;dy<=k&&!nearInk;dy+=2)for(let dx=-k;dx<=k;dx+=2){const X=x+dx,Y=y+dy;if(X>=0&&Y>=0&&X<w&&Y<h&&S.ink[Y*w+X]){nearInk=true;break}}
-      if(nearInk)L-=2}
+    if(S.ink){const x=Math.round(o.x),y=Math.round(o.y),k=Math.max(3,Math.round(Math.max(S.medR,o.r)*2.2));let dmin=1e9;   // writing edges leave bright fringes
+      for(let dy=-k;dy<=k;dy+=2)for(let dx=-k;dx<=k;dx+=2){const X=x+dx,Y=y+dy;if(X>=0&&Y>=0&&X<w&&Y<h&&S.ink[Y*w+X])dmin=Math.min(dmin,Math.hypot(dx,dy))}
+      if(dmin<=Math.max(S.medR,o.r)*1.3)L-=(o.qb||0)>2?2:3.5;          // right against the writing
+      else if(dmin<=k&&(o.qb||0)<2)L-=1.5}                               // close to it, and no solid body
+    // the spot's body is no brighter than the agar around it: an edge, a fringe or a reflection, not a colony
+    if(o.qb!=null&&o.r>=S.medR*.8&&o.qb<0)L-=Math.min(6,3.5-o.qb*.8);
+    // a big round shape on the dish wall with a weak body is the lid or wall reflecting light
+    if(o.r>3*S.medR&&(o.qb||0)<2)L-=(o.dn||0)>.85?4:3;
     if(o.free)L-=.8;                                  // no solid spot behind it: a speck, droplet or texture
     if(o.halo)L-=3;                                   // in the shadow ring around a bigger colony
     o.conf=Math.max(1,Math.min(99,Math.round(100/(1+Math.exp(-L/2)))));   // gentle curve: the slider reveals spots gradually
