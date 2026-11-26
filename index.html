@@ -239,7 +239,6 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
       <button type="button" id="saveImgBtn" class="tunebtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></svg>Save counted image</button>
       <div class="legend">
         <span><i style="border-color:#35e08b"></i>Counted</span>
-        <span><i style="border-color:#c8f06a;border-style:dashed"></i>Less certain</span>
         <span><i style="border-color:#ffcf4a"></i>Stuck together (×2, ×3)</span>
         <span><i style="border-color:#4fb3ff"></i>Added by you</span>
       </div>
@@ -967,6 +966,10 @@ function byShape(pts,res,med){
     for(let s=1;s<n;s++){const t=s/n;m=Math.min(m,z(p.x+(q.x-p.x)*t,p.y+(q.y-p.y)*t))}
     // a pale lobe on the edge of a darker colony fades out without a gap; a paler colony touching
     // a darker one (two kinds of colony on one plate) has a clear gap before it
+    // two centres further apart than one colony is wide, with any dip at all between them,
+    // are two small colonies stuck together (a soft photo blurs the gap between tiny colonies)
+    {const dd=Math.hypot(p.x-q.x,p.y-q.y),bd=curBodies&&curBodies.length?Math.max(...curBodies.map(b=>b.d)):S.medR;
+     if(dd>Math.max(S.medR*1.25,bd*1.4)&&lo>=hi*.6&&m<lo*.97)return true}
     if(lo<hi*.7)return m<lo*.6;
     return m<lo*.9;                                   // a lighter dip between two centres
   };
@@ -996,7 +999,15 @@ function byShape(pts,res,med){
       for(const hd of heads){const dd=Math.hypot(hd.x-p.x,hd.y-p.y);if(dd>reach)continue;if(!separate(hd,p)&&dd<bd){bd=dd;bh=hd}}
       if(!bh){heads.push(p);sets.set(p,[p])}else sets.get(bh).push(p);
     }
-    if(sets.size===1){out.push({x:c.x,y:c.y,r:Math.max(S.medR,Math.sqrt(c.area/Math.PI)),v:0,q:Math.max(...g.map(p=>p.q)),comp:c});continue}
+    if(sets.size===1){
+      // one blob shaped like two round colonies side by side (a short, full oval about twice a
+      // colony's area) is a pair stuck together, even when the photo shows no gap between them
+      const ma=Math.PI*S.medR*S.medR,fill=c.area/(c.bw*c.bh*.785);
+      if(S.split&&c.area<=ma*3.2&&c.elong<=2.4&&((c.area>=ma*1.7&&c.elong>=1.3)||(c.area>=ma*1.3&&c.elong>=1.4))&&fill>=.75&&c.phi!=null){
+        const r0=Math.sqrt(c.area/2/Math.PI),a=Math.sqrt(c.area/Math.PI)*Math.sqrt(c.elong),off=Math.max(r0*.6,a-r0),ux=Math.cos(c.phi),uy=Math.sin(c.phi),qq=Math.max(...g.map(p=>p.q));
+        for(const sg of[1,-1])out.push({x:c.x+sg*ux*off,y:c.y+sg*uy*off,r:Math.max(S.medR*.8,r0),v:0,q:qq,comp:null,grp:c,pair:true});
+        continue}
+      out.push({x:c.x,y:c.y,r:Math.max(S.medR,Math.sqrt(c.area/Math.PI)),v:0,q:Math.max(...g.map(p=>p.q)),comp:c});continue}
     for(const set of sets.values()){
       set.sort((u,v)=>z(v.x,v.y)-z(u.x,u.y));const top=set[0];
       let rr=S.medR;for(const q of set)rr=Math.max(rr,Math.hypot(q.x-top.x,q.y-top.y)+q.r*.8);
@@ -1408,9 +1419,8 @@ function draw(){
   const fs=Math.max(11,Math.min(w,h)/380*7)/S.z;
   vctx.font='700 '+fs+'px JetBrains Mono, monospace';vctx.textAlign='left';
   for(const m of S.auto){if(!vis(m))continue;
-    const unsure=m.conf<S.conf+12&&m.n===1;
-    vctx.setLineDash(unsure?[lw*2.5,lw*2]:[]);
-    vctx.strokeStyle=m.n>1?'#ffcf4a':unsure?'#c8f06a':'#35e08b';vctx.beginPath();vctx.arc(m.x,m.y,m.r,0,7);vctx.stroke();vctx.setLineDash([]);
+    vctx.setLineDash([]);
+    vctx.strokeStyle=m.n>1?'#ffcf4a':'#35e08b';vctx.beginPath();vctx.arc(m.x,m.y,m.r,0,7);vctx.stroke();vctx.setLineDash([]);
     if(m.n>1){vctx.fillStyle='#ffcf4a';vctx.fillText('×'+m.n,m.x+m.r+2/S.z,m.y-m.r)}}
   for(const m of S.manual){vctx.strokeStyle='#4fb3ff';vctx.beginPath();vctx.arc(m.x,m.y,m.r,0,7);vctx.stroke();
     vctx.beginPath();vctx.moveTo(m.x-m.r*.5,m.y);vctx.lineTo(m.x+m.r*.5,m.y);vctx.moveTo(m.x,m.y-m.r*.5);vctx.lineTo(m.x,m.y+m.r*.5);vctx.stroke();
