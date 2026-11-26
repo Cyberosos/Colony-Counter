@@ -106,7 +106,8 @@ body.tuning .stage{display:flex;justify-content:center}
 #lockBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 #view{touch-action:pan-y}
 .corner{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none}
-.fabs{position:absolute;left:10px;bottom:10px;display:flex;gap:8px;z-index:3}
+.fabs{position:absolute;left:10px;bottom:10px;display:flex;gap:7px;z-index:3}
+@media(max-width:400px){.fabs{gap:5px}.fabs .fab{width:52px;height:54px}}
 .fab{width:58px;height:58px;min-height:0;padding:0;border-radius:16px;border:2px solid rgba(255,255,255,.25);background:rgba(15,10,8,.8);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;line-height:1}
 .fab span{font-size:1.5rem;font-weight:800}
 .fab small{font-size:.62rem;font-weight:700;letter-spacing:.02em;margin-top:2px}
@@ -224,6 +225,7 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
           <button type="button" class="fab" id="fabAdd" aria-pressed="false" aria-label="Add colonies: tap the photo to add"><span aria-hidden="true">＋</span><small>Add</small></button>
           <button type="button" class="fab" id="fabRemove" aria-pressed="false" aria-label="Remove colonies: tap a circle to remove it"><span aria-hidden="true">−</span><small>Remove</small></button>
           <button type="button" class="fab" id="fabUndo" disabled aria-label="Undo last change"><span aria-hidden="true">↶</span><small>Undo</small></button>
+          <button type="button" class="fab" id="fabDish" aria-pressed="false" aria-label="Move or resize the dish circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3.2 2.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/></svg><small>Dish</small></button>
         </div>
         <div class="modebanner" id="modeBanner" hidden></div>
         <button type="button" class="peekbtn" id="peekBtn" aria-label="Hold to see the original photo" title="Hold to see the original photo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3.2"/></svg></button>
@@ -238,9 +240,10 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
       <button type="button" id="tuneBtn" class="tunebtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Fine-tune detection</button>
       <button type="button" id="saveImgBtn" class="tunebtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></svg>Save counted image</button>
       <div class="legend">
-        <span><i style="border-color:#35e08b"></i>Counted</span>
-        <span><i style="border-color:#ffcf4a"></i>Stuck together (×2, ×3)</span>
+        <span><i style="border-color:#35e08b"></i>Counted (×2 = stuck together)</span>
         <span><i style="border-color:#4fb3ff"></i>Added by you</span>
+        <span><i style="border-color:#ffd84a"></i>Just found by the slider</span>
+        <span><i style="border-color:#ff4d4d"></i>Just left out by the slider</span>
       </div>
 
     </div>
@@ -371,12 +374,8 @@ textarea.fallback{width:100%;min-height:120px;font-family:var(--mono);font-size:
   <div class="adjust">
       <div class="field">
         <span class="lbl">The dish</span>
-        <div class="seg three" role="group" aria-label="Adjust the dish">
-          <button type="button" id="modeCircle" aria-pressed="false">Move / resize</button>
-          <button type="button" id="findDishBtn">Find again</button>
-          <button type="button" id="lockBtn" aria-pressed="false">Lock circle</button>
-        </div>
-        <small id="dishNote">Only colonies inside the dashed circle are counted.</small>
+        <button type="button" id="findDishBtn">Find the dish again</button>
+        <small id="dishNote">Only colonies inside the dashed circle are counted. To move or resize it, tap <b>Dish</b> on the photo.</small>
       </div>
       <div class="field">
     <span class="lbl">Colonies stuck together (big or small)</span>
@@ -522,7 +521,7 @@ $('#sampleBtn').addEventListener('click',()=>{
 let running=false,pending=false;
 const pause=t=>new Promise(r=>{$('#busy').textContent=t;requestAnimationFrame(()=>setTimeout(r,0))});
 function stale(g){if(g!==S.gen)throw'stale'}
-function runDetect(){
+function runDetect(){FL=null;
   if(running){pending=true;return}
   running=true;$('#busy').hidden=false;
   detectAll().then(()=>true,e=>{if(e!=='stale')console.error(e);return false}).then(ok=>{
@@ -1428,8 +1427,13 @@ function draw(){
   vctx.font='700 '+fs+'px JetBrains Mono, monospace';vctx.textAlign='left';
   for(const m of S.auto){if(!vis(m))continue;
     vctx.setLineDash([]);
-    vctx.strokeStyle=m.n>1?'#ffcf4a':'#35e08b';vctx.beginPath();vctx.arc(m.x,m.y,m.r,0,7);vctx.stroke();vctx.setLineDash([]);
-    if(m.n>1){vctx.fillStyle='#ffcf4a';vctx.fillText('×'+m.n,m.x+m.r+2/S.z,m.y-m.r)}}
+    const col=flashColour(m);vctx.lineWidth=col.w*lw;
+    vctx.strokeStyle=col.c;vctx.beginPath();vctx.arc(m.x,m.y,m.r,0,7);vctx.stroke();
+    if(m.n>1){vctx.fillStyle=col.c;vctx.fillText('×'+m.n,m.x+m.r+2/S.z,m.y-m.r)}}
+  vctx.lineWidth=lw*1.2;
+  // colonies the slider just took away: red, fading out
+  if(FL&&FL.removed.length){const a=1-flashK();if(a>0){vctx.strokeStyle='rgba(255,77,77,'+a.toFixed(3)+')';vctx.lineWidth=lw*1.8;
+    for(const m of FL.removed){if(vis(m))continue;vctx.beginPath();vctx.arc(m.x,m.y,m.r,0,7);vctx.stroke()}vctx.lineWidth=lw*1.2}}
   for(const m of S.manual){vctx.strokeStyle='#4fb3ff';vctx.beginPath();vctx.arc(m.x,m.y,m.r,0,7);vctx.stroke();
     vctx.beginPath();vctx.moveTo(m.x-m.r*.5,m.y);vctx.lineTo(m.x+m.r*.5,m.y);vctx.moveTo(m.x,m.y-m.r*.5);vctx.lineTo(m.x,m.y+m.r*.5);vctx.stroke();
     if(m.n>1){vctx.fillStyle='#4fb3ff';vctx.fillText('×'+m.n,m.x+m.r+2/S.z,m.y-m.r)}}
@@ -1442,7 +1446,7 @@ function refresh(){
    const en=$('#editNote');en.hidden=!(added||removed);en.textContent=[added?'+'+added+' added':'',removed?'−'+removed+' removed':''].filter(Boolean).join(' · ')+' by you'}
   $('#polNote').textContent='Detected: colonies '+(S.usedPol==='light'?'lighter':'darker')+' than the agar';
   const notes=[];
-  if(S.w)notes.push(S.dishFound?'Dish found ✓  Not right? Fine-tune → The dish':'Dish placed by hand. Fine-tune → The dish to adjust it.');
+  if(S.w)notes.push(S.dishFound?'Dish found ✓  Not right? Tap Dish on the photo.':'Dish placed by hand. Tap Dish on the photo to adjust it.');
   $('#confOut').textContent=S.conf+'%';$('#confReset').hidden=S.conf===40;
   $('#autoNotes').textContent=notes.join(' · ');
   $('#inkNote').textContent=!S.inkOn?'Off':S.inkMarks?(S.inkMarks+' found'):'None found';
@@ -1528,29 +1532,24 @@ const HINTS={
   view:'To fix the count by hand, pick ＋ Add or − Remove on the photo, then tap.',
   add:'Tap an empty spot to add a missed colony. Tap inside a circle if it is 2 or 3 colonies stuck together; each tap adds one.',
   remove:'Tap a circle to remove it. On a clump, each tap lowers its number by one.',
-  circle:'Drag inside the circle to move it. Drag its edge (the white dot) to resize. Then tap Lock circle.'
+  circle:'Drag inside the circle to move it. Drag its edge (the white dot) to resize. Tap Dish again when done.'
 };
 function setMode(m){
-  if(m==='circle'&&S.locked){toast('Unlock the circle first.');return}
-  S.mode=m;$('#modeCircle').setAttribute('aria-pressed',m==='circle');
+  S.mode=m;$('#fabDish').setAttribute('aria-pressed',m==='circle');
   $('#fabAdd').setAttribute('aria-pressed',m==='add');$('#fabRemove').setAttribute('aria-pressed',m==='remove');
   const bn=$('#modeBanner');bn.hidden=!(m==='add'||m==='remove');
   bn.hidden=m==='view';
-  bn.textContent=m==='add'?'Tap to add a colony':m==='remove'?'Tap a circle to remove it':m==='circle'?'Drag inside to move the dish circle, drag its edge to resize':'';
+  bn.textContent=m==='add'?'Tap to add a colony':m==='remove'?'Tap a circle to remove it':m==='circle'?'Drag to move the circle, drag its edge to resize. Tap Dish when done.':'';
   updateZoomUI();draw();
 }
-function setLock(on){
-  S.locked=on;const b=$('#lockBtn');b.setAttribute('aria-pressed',on);b.textContent=on?'Unlock circle':'Lock circle';
-  $('#lockPill').hidden=!on;$('#modeCircle').disabled=on;
-  if(on&&S.mode==='circle')setMode('view');else draw();
-}
+/* The circle only moves while Dish is on, so zooming and tapping can never shift it by accident */
+function setLock(on){S.locked=false;const lp=$('#lockPill');if(lp)lp.hidden=true;draw()}
 $('#fabAdd').addEventListener('click',()=>setMode(S.mode==='add'?'view':'add'));
 $('#fabRemove').addEventListener('click',()=>setMode(S.mode==='remove'?'view':'remove'));
 $('#fabUndo').addEventListener('click',()=>{const f=S.undo.pop();if(f){f();refresh();toast('Undone')}});
-$('#modeCircle').addEventListener('click',()=>setMode(S.mode==='circle'?'view':'circle'));
-$('#lockBtn').addEventListener('click',()=>{setLock(!S.locked);toast(S.locked?'Circle locked. It stays put while you zoom and tap.':'Circle unlocked')});
+$('#fabDish').addEventListener('click',()=>{if(!S.w)return;setMode(S.mode==='circle'?'view':'circle')});
 $('#findDishBtn').addEventListener('click',()=>{
-  if(!S.w)return;if(S.locked){toast('Unlock the circle first.');return}
+  if(!S.w)return;
   const d=findDish();if(!d){toast("Couldn't find the dish. Drag the circle onto it by hand.");setMode('circle');return}
   S.circle=d;runDetect();toast('Dish found')});
 const peekBtn=$('#peekBtn');
@@ -1571,8 +1570,26 @@ setMode('view');
 let detTimer=0;
 function bindRange(id,key,out){$(id).addEventListener('input',e=>{S[key]=+e.target.value;$(out).textContent=S[key];clearTimeout(detTimer);detTimer=setTimeout(runDetect,180)})}
 const confIn=$('#conf');
-confIn.addEventListener('input',()=>{S.conf=+confIn.value;refresh()});
-$('#confReset').addEventListener('click',()=>{S.conf=40;confIn.value=40;refresh()});
+/* Moving the slider shows what changed: colonies it adds flash yellow, colonies it takes away
+   flash red. Both stay while the finger is on the slider, then fade over 3 seconds. */
+var FL=null,flashRaf=0,FLASH_HOLD=1000,FLASH_FADE=2000;
+function flashK(){if(!FL||FL.t0==null)return 0;const t=performance.now()-FL.t0-FLASH_HOLD;return Math.max(0,Math.min(1,t/FLASH_FADE))}
+function flashColour(m){
+  if(FL&&FL.added.has(m)){const k=flashK(),c0=[255,216,74],c1=[53,224,139];
+    return{c:'rgb('+c0.map((v,i)=>Math.round(v+(c1[i]-v)*k)).join(',')+')',w:1.8-.6*k}}
+  return{c:'#35e08b',w:1.2}}
+function flashTick(){draw();if(FL&&FL.t0!=null){if(performance.now()-FL.t0<FLASH_HOLD+FLASH_FADE)flashRaf=requestAnimationFrame(flashTick);else{FL=null;draw()}}}
+function setConf(v,done){
+  if(!FL||FL.t0!=null){FL={base:new Set(S.auto.filter(vis)),added:new Set(),removed:[],t0:null};cancelAnimationFrame(flashRaf)}
+  S.conf=v;
+  FL.added=new Set(S.auto.filter(m=>vis(m)&&!FL.base.has(m)));
+  FL.removed=[...FL.base].filter(m=>!vis(m));
+  refresh();
+  if(done){FL.t0=performance.now();flashRaf=requestAnimationFrame(flashTick)}
+}
+confIn.addEventListener('input',()=>setConf(+confIn.value,false));
+confIn.addEventListener('change',()=>setConf(+confIn.value,true));
+$('#confReset').addEventListener('click',()=>{confIn.value=40;setConf(40,true)});
 document.querySelectorAll('[data-pol]').forEach(b=>b.addEventListener('click',()=>{
   S.pol=b.dataset.pol;document.querySelectorAll('[data-pol]').forEach(x=>x.setAttribute('aria-pressed',x===b));runDetect()}));
 
